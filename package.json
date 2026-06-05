@@ -5,7 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/server.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "seed:plans": "ts-node prisma/seed_plans.ts",
     "seed:super-admin": "ts-node prisma/seed_super_admin.ts",
     "seed:skills": "ts-node src/scripts/seed-skills.ts",
