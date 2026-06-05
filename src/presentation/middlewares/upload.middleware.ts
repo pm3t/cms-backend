@@ -22,12 +22,12 @@ const imageFileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFi
 // ─── Member Photos ─────────────────────────────────────────────────────────────
 
 const photoUploadsDir = path.join(process.cwd(), 'uploads', 'member-photos');
-if (!fs.existsSync(photoUploadsDir)) {
-    fs.mkdirSync(photoUploadsDir, { recursive: true });
-}
 
 const localPhotoStorage = multer.diskStorage({
     destination: (_req, _file, cb) => {
+        if (!fs.existsSync(photoUploadsDir)) {
+            fs.mkdirSync(photoUploadsDir, { recursive: true });
+        }
         cb(null, photoUploadsDir);
     },
     filename: (_req, file, cb) => {
@@ -56,12 +56,12 @@ export const photoUpload = multer({
 // ─── Transaction Receipts ────────────────────────────────────────────────────────
 
 const receiptUploadsDir = path.join(process.cwd(), 'uploads', 'receipts');
-if (!fs.existsSync(receiptUploadsDir)) {
-    fs.mkdirSync(receiptUploadsDir, { recursive: true });
-}
 
 const localReceiptStorage = multer.diskStorage({
     destination: (_req, _file, cb) => {
+        if (!fs.existsSync(receiptUploadsDir)) {
+            fs.mkdirSync(receiptUploadsDir, { recursive: true });
+        }
         cb(null, receiptUploadsDir);
     },
     filename: (_req, file, cb) => {
