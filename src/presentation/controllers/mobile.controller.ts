@@ -91,7 +91,7 @@ export const mobileController = {
       if (!req.file) {
         return res.status(400).json({ error: 'File bukti transfer wajib diunggah' });
       }
-      const imageUrl = `/uploads/receipts/${req.file.filename}`;
+      const imageUrl = req.file.location || `/uploads/receipts/${req.file.filename}`;
       res.json({ imageUrl });
     } catch (e: any) { res.status(400).json({ error: e.message }); }
   },
@@ -101,7 +101,7 @@ export const mobileController = {
       if (!req.file) {
         return res.status(400).json({ error: 'Foto profil wajib diunggah' });
       }
-      const photoUrl = `/uploads/member-photos/${req.file.filename}`;
+      const photoUrl = req.file.location || `/uploads/member-photos/${req.file.filename}`;
       const updated = await mobileService.updateProfilePhoto(req.user.memberId, photoUrl);
       res.json({ photoUrl, member: updated });
     } catch (e: any) { res.status(400).json({ error: e.message }); }

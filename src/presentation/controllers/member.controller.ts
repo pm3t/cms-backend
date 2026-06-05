@@ -82,7 +82,7 @@ export const memberController = {
             // Verify member belongs to this tenant
             await memberService.getMember(req.user.tenantId, memberId);
 
-            const photoUrl = `/uploads/member-photos/${file.filename}`;
+            const photoUrl = file.location || `/uploads/member-photos/${file.filename}`;
 
             await prisma.member.update({
                 where: { id: memberId },

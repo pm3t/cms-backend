@@ -12,7 +12,16 @@ const certificateService = new CertificateService();
 const templateService = new CertificateTemplateService();
 
 // Helper: build file info from multer uploaded file
-function buildFileInfo(file: Express.Multer.File, tenantId: string) {
+function buildFileInfo(file: any, tenantId: string) {
+  // If S3 was used, file.location contains the full public URL
+  if (file.location) {
+    return {
+      url: file.location,
+      type: file.mimetype,
+      size: file.size,
+      name: file.originalname,
+    };
+  }
   // Construct a URL path relative to server root
   const relativePath = path.relative(process.cwd(), file.path).replace(/\\/g, '/');
   return {

@@ -1,24 +1,14 @@
 import multer from 'multer';
+import multerS3 from 'multer-s3';
 import path from 'path';
 import fs from 'fs';
+import { s3Client, isS3Configured, S3_BUCKET_NAME } from '../../lib/s3';
 
-// ─── Member Photos ─────────────────────────────────────────────────────────────
-
-const photoUploadsDir = path.join(process.cwd(), 'uploads', 'member-photos');
-if (!fs.existsSync(photoUploadsDir)) {
-    fs.mkdirSync(photoUploadsDir, { recursive: true });
-}
-
-const photoStorage = multer.diskStorage({
-    destination: (_req, _file, cb) => {
-        cb(null, photoUploadsDir);
-    },
-    filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase();
-        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-        cb(null, unique);
-    }
-});
+// Helper to sanitize files and ensure unique names
+const getUniqueFilename = (file: Express.Multer.File) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    return `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+};
 
 const imageFileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -29,8 +19,36 @@ const imageFileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFi
     }
 };
 
+// ─── Member Photos ─────────────────────────────────────────────────────────────
+
+const photoUploadsDir = path.join(process.cwd(), 'uploads', 'member-photos');
+if (!fs.existsSync(photoUploadsDir)) {
+    fs.mkdirSync(photoUploadsDir, { recursive: true });
+}
+
+const localPhotoStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => {
+        cb(null, photoUploadsDir);
+    },
+    filename: (_req, file, cb) => {
+        cb(null, getUniqueFilename(file));
+    }
+});
+
+const s3PhotoStorage = isS3Configured && s3Client
+    ? multerS3({
+          s3: s3Client,
+          bucket: S3_BUCKET_NAME,
+          acl: 'public-read',
+          contentType: multerS3.AUTO_CONTENT_TYPE,
+          key: (_req, file, cb) => {
+              cb(null, `member-photos/${getUniqueFilename(file)}`);
+          }
+      })
+    : null;
+
 export const photoUpload = multer({
-    storage: photoStorage,
+    storage: s3PhotoStorage || localPhotoStorage,
     fileFilter: imageFileFilter,
     limits: { fileSize: 5 * 1024 * 1024 } // 5 MB
 });
@@ -42,19 +60,29 @@ if (!fs.existsSync(receiptUploadsDir)) {
     fs.mkdirSync(receiptUploadsDir, { recursive: true });
 }
 
-const receiptStorage = multer.diskStorage({
+const localReceiptStorage = multer.diskStorage({
     destination: (_req, _file, cb) => {
         cb(null, receiptUploadsDir);
     },
     filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase();
-        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-        cb(null, unique);
+        cb(null, getUniqueFilename(file));
     }
 });
 
+const s3ReceiptStorage = isS3Configured && s3Client
+    ? multerS3({
+          s3: s3Client,
+          bucket: S3_BUCKET_NAME,
+          acl: 'public-read',
+          contentType: multerS3.AUTO_CONTENT_TYPE,
+          key: (_req, file, cb) => {
+              cb(null, `receipts/${getUniqueFilename(file)}`);
+          }
+      })
+    : null;
+
 export const receiptUpload = multer({
-    storage: receiptStorage,
+    storage: s3ReceiptStorage || localReceiptStorage,
     fileFilter: imageFileFilter,
     limits: { fileSize: 5 * 1024 * 1024 } // 5 MB
 });
@@ -83,9 +111,8 @@ const DOCUMENT_ALLOWED_MIME = [
     'image/webp',
 ];
 
-const documentStorage = multer.diskStorage({
+const localDocumentStorage = multer.diskStorage({
     destination: (req: any, _file, cb) => {
-        // Store per-tenant for isolation
         const tenantId = req.user?.tenantId || 'unknown';
         const dir = path.join(process.cwd(), 'uploads', 'documents', tenantId);
         if (!fs.existsSync(dir)) {
@@ -94,11 +121,22 @@ const documentStorage = multer.diskStorage({
         cb(null, dir);
     },
     filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase();
-        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-        cb(null, unique);
+        cb(null, getUniqueFilename(file));
     }
 });
+
+const s3DocumentStorage = isS3Configured && s3Client
+    ? multerS3({
+          s3: s3Client,
+          bucket: S3_BUCKET_NAME,
+          acl: 'public-read',
+          contentType: multerS3.AUTO_CONTENT_TYPE,
+          key: (req: any, file, cb) => {
+              const tenantId = req.user?.tenantId || 'unknown';
+              cb(null, `documents/${tenantId}/${getUniqueFilename(file)}`);
+          }
+      })
+    : null;
 
 const documentFileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     if (DOCUMENT_ALLOWED_MIME.includes(file.mimetype)) {
@@ -109,7 +147,7 @@ const documentFileFilter = (_req: any, file: Express.Multer.File, cb: multer.Fil
 };
 
 export const documentUpload = multer({
-    storage: documentStorage,
+    storage: s3DocumentStorage || localDocumentStorage,
     fileFilter: documentFileFilter,
     limits: { fileSize: 50 * 1024 * 1024 } // 50 MB
 });
