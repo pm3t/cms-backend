@@ -1,7 +1,7 @@
 import { prisma } from '../../prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-const { authenticator } = require('otplib');
+import { verifyTOTP } from '../../lib/totp';
 
 export class AuthService {
     async registerUser(data: { email: string; password: string; name: string; churchName?: string; tenantId: string }) {
@@ -118,7 +118,7 @@ export class AuthService {
         });
         if (!user || !user.totpSecret) throw new Error('2FA not configured');
 
-        const isValid = authenticator.verify({ token, secret: user.totpSecret });
+        const isValid = verifyTOTP(token, user.totpSecret);
         if (!isValid) throw new Error('Invalid token');
 
         const tenantName = user.tenant?.name || user.tenantId;
