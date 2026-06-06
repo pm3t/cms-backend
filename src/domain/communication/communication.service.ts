@@ -77,15 +77,15 @@ export class CommunicationService {
         
         const recipients = await prisma.member.findMany({ where: query });
         
-        console.log(`[CommunicationService] Starting bulk job for \${recipients.length} recipients via \${template.channel}`);
+        console.log(`[CommunicationService] Starting bulk job for ${recipients.length} recipients via ${template.channel}`);
 
-        // Process in background (mocking a worker)
-        recipients.forEach(async (recipient) => {
+        // Process concurrently and wait to prevent Vercel Serverless CPU freezing
+        const sendPromises = recipients.map(async (recipient) => {
             const target = template.channel === 'EMAIL' ? recipient.email : recipient.phone;
             if (!target) return;
 
             // Simple variable replacement
-            const fullName = `\${recipient.firstName} \${recipient.lastName || ''}`.trim();
+            const fullName = `${recipient.firstName} ${recipient.lastName || ''}`.trim();
             const replaceVars = (str: string) => {
                 return str.replace(/\{\{name\}\}/gi, fullName);
             };
@@ -97,6 +97,8 @@ export class CommunicationService {
                 channel: template.channel
             });
         });
+
+        await Promise.all(sendPromises);
 
         return { jobStarted: true, recipientCount: recipients.length };
     }
@@ -110,6 +112,7 @@ export class CommunicationService {
         }
 
         // Handle SMS, WhatsApp, Push (Mock)
+        const isSuccess = Math.random() > 0.05;
         const log = await prisma.communicationLog.create({
             data: {
                 tenantId,
@@ -117,22 +120,10 @@ export class CommunicationService {
                 subject: data.subject,
                 body: data.body,
                 channel: data.channel,
-                status: 'PENDING'
+                status: isSuccess ? 'SENT' : 'FAILED',
+                errorDetail: isSuccess ? null : `Mock Failure: Provider for ${data.channel} not connected`
             }
         });
-
-        // Simulating async delivery
-        setTimeout(async () => {
-            const isSuccess = Math.random() > 0.05;
-            await prisma.communicationLog.update({
-                where: { id: log.id },
-                data: {
-                    status: isSuccess ? 'SENT' : 'FAILED',
-                    errorDetail: isSuccess ? null : `Mock Failure: Provider for \${data.channel} not connected`
-                }
-            });
-            console.log(`[CommunicationService] \${data.channel} sent to \${data.recipient}: \${isSuccess ? 'SUCCESS' : 'FAILED'}`);
-        }, 1500);
 
         return log;
     }
@@ -162,20 +153,14 @@ export class CommunicationService {
             : undefined;
 
         if (!transporter) {
-            setTimeout(async () => {
-                try {
-                    const isSuccess = Math.random() > 0.05;
-                    await prisma.communicationLog.update({
-                        where: { id: log.id },
-                        data: {
-                            status: isSuccess ? 'SENT' : 'FAILED',
-                            errorDetail: isSuccess ? null : 'Mock Failure: SMTP not configured'
-                        }
-                    });
-                } catch (err) {
-                    console.error("Failed to update notification log", err);
+            const isSuccess = Math.random() > 0.05;
+            await prisma.communicationLog.update({
+                where: { id: log.id },
+                data: {
+                    status: isSuccess ? 'SENT' : 'FAILED',
+                    errorDetail: isSuccess ? null : 'Mock Failure: SMTP not configured'
                 }
-            }, 2000);
+            });
             return log;
         }
 
