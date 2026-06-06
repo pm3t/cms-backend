@@ -6,6 +6,7 @@ import {
   CertificateTemplateService,
 } from '../../domain/document/document.service';
 import { DocumentCategory, CertificateType } from '@prisma/client';
+import { getUploadUrl } from '../middlewares/upload.middleware';
 
 const documentService = new DocumentService();
 const certificateService = new CertificateService();
@@ -16,7 +17,7 @@ function buildFileInfo(file: any, tenantId: string) {
   // If S3 was used, file.location contains the full public URL
   if (file.location) {
     return {
-      url: file.location,
+      url: getUploadUrl(file, ''),
       type: file.mimetype,
       size: file.size,
       name: file.originalname,

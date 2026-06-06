@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { MemberService, FamilyService, SacramentService } from '../../domain/member/member.service';
 import { prisma } from '../../prisma';
+import { getUploadUrl } from '../middlewares/upload.middleware';
 
 const memberService = new MemberService();
 const familyService = new FamilyService();
@@ -82,7 +83,7 @@ export const memberController = {
             // Verify member belongs to this tenant
             await memberService.getMember(req.user.tenantId, memberId);
 
-            const photoUrl = file.location || `/uploads/member-photos/${file.filename}`;
+            const photoUrl = getUploadUrl(file, `/uploads/member-photos/${file.filename}`);
 
             await prisma.member.update({
                 where: { id: memberId },

@@ -148,3 +148,19 @@ export const documentUpload = multer({
     fileFilter: documentFileFilter,
     limits: { fileSize: 50 * 1024 * 1024 } // 50 MB
 });
+
+export function getUploadUrl(file: any, defaultLocalPath: string): string {
+    if (!file) return '';
+    if (file.location) {
+        if (file.location.includes('backblazeb2.com')) {
+            const bucket = process.env.S3_BUCKET_NAME || 'eklesia-uploads';
+            const endpoint = process.env.S3_ENDPOINT || '';
+            const podMatch = endpoint.match(/us-east-(\d+)/) || file.location.match(/us-east-(\d+)/);
+            const podNumber = podMatch ? podMatch[1] : '005';
+            return `https://f${podNumber}.backblazeb2.com/file/${bucket}/${file.key}`;
+        }
+        return file.location;
+    }
+    return defaultLocalPath;
+}
+
