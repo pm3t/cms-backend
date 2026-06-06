@@ -39,7 +39,6 @@ const s3PhotoStorage = isS3Configured && s3Client
     ? multerS3({
           s3: s3Client,
           bucket: S3_BUCKET_NAME,
-          acl: 'public-read',
           contentType: multerS3.AUTO_CONTENT_TYPE,
           key: (_req, file, cb) => {
               cb(null, `member-photos/${getUniqueFilename(file)}`);
@@ -73,7 +72,6 @@ const s3ReceiptStorage = isS3Configured && s3Client
     ? multerS3({
           s3: s3Client,
           bucket: S3_BUCKET_NAME,
-          acl: 'public-read',
           contentType: multerS3.AUTO_CONTENT_TYPE,
           key: (_req, file, cb) => {
               cb(null, `receipts/${getUniqueFilename(file)}`);
@@ -129,7 +127,6 @@ const s3DocumentStorage = isS3Configured && s3Client
     ? multerS3({
           s3: s3Client,
           bucket: S3_BUCKET_NAME,
-          acl: 'public-read',
           contentType: multerS3.AUTO_CONTENT_TYPE,
           key: (req: any, file, cb) => {
               const tenantId = req.user?.tenantId || 'unknown';
