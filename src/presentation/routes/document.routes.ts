@@ -40,6 +40,10 @@ documentRouter.get('/templates', documentController.getTemplates);
 documentRouter.post('/templates', documentController.createTemplate);
 documentRouter.get('/templates/:id', documentController.getTemplateById);
 documentRouter.patch('/templates/:id', documentController.updateTemplate);
-documentRouter.delete('/templates/:id', documentController.deleteTemplate);
+// ─── Sacrament Requests ───────────────────────────────────────────────────────
+documentRouter.get('/sacrament-requests', documentController.getSacramentRequests);
+documentRouter.get('/sacrament-requests/:id', documentController.getSacramentRequestById);
+documentRouter.post('/sacrament-requests/:id/approve', documentUpload.single('file'), documentController.approveSacramentRequest);
+documentRouter.post('/sacrament-requests/:id/reject', documentController.rejectSacramentRequest);
 
 export default documentRouter;

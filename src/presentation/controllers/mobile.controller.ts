@@ -1,12 +1,15 @@
 import { Response } from 'express';
+import path from 'path';
 import { MobileService } from '../../domain/mobile/mobile.service';
 import { DigitalService } from '../../domain/digital/digital.service';
 import { CertificateService } from '../../domain/document/document.service';
+import { NewsletterService } from '../../domain/communication/newsletter.service';
 import { getUploadUrl } from '../middlewares/upload.middleware';
 
 const mobileService = new MobileService();
 const digitalService = new DigitalService();
 const certificateService = new CertificateService();
+const newsletterService = new NewsletterService();
 
 export const mobileController = {
   async register(req: any, res: Response) {
@@ -194,13 +197,94 @@ export const mobileController = {
   },
 
   async getNewsletters(req: any, res: Response) {
-    try { res.json(await digitalService.getPublicBulletins(req.user.tenantId)); }
+    try {
+      const newsletters = await newsletterService.listPublic(req.user.tenantId);
+      const mapped = newsletters.map(item => ({
+        ...item,
+        date: item.publishDate
+      }));
+      res.json(mapped);
+    }
     catch (e: any) { res.status(400).json({ error: e.message }); }
   },
 
   async getCertificates(req: any, res: Response) {
     try { res.json(await certificateService.listByMember(req.user.tenantId, req.user.memberId)); }
     catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async getCounselors(req: any, res: Response) {
+    try { res.json(await mobileService.getCounselors(req.user.tenantId)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async getMyCounselings(req: any, res: Response) {
+    try { res.json(await mobileService.getMyCounselings(req.user.memberId)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async createCounseling(req: any, res: Response) {
+    try { res.status(201).json(await mobileService.createCounselingBooking(req.user.tenantId, req.user.memberId, req.body)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async getFacilities(req: any, res: Response) {
+    try { res.json(await mobileService.getFacilities(req.user.tenantId)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async getMyFacilityBookings(req: any, res: Response) {
+    try { res.json(await mobileService.getMyFacilityBookings(req.user.tenantId, req.user.memberId)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async createFacilityBooking(req: any, res: Response) {
+    try { res.status(201).json(await mobileService.createFacilityBooking(req.user.tenantId, req.user.memberId, req.body)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async getSmallGroups(req: any, res: Response) {
+    try { res.json(await mobileService.getSmallGroups(req.user.tenantId, req.user.memberId)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async requestToJoinSmallGroup(req: any, res: Response) {
+    try { res.status(201).json(await mobileService.requestToJoinSmallGroup(req.user.tenantId, req.user.memberId, req.body.groupId, req.body.notes)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async getSacramentRequests(req: any, res: Response) {
+    try { res.json(await mobileService.getSacramentRequests(req.user.tenantId, req.user.memberId)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async createSacramentRequest(req: any, res: Response) {
+    try { res.status(201).json(await mobileService.createSacramentRequest(req.user.tenantId, req.user.memberId, req.body)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async uploadSacramentRequirement(req: any, res: Response) {
+    try {
+      const file = req.file as any;
+      if (!file) return res.status(400).json({ error: 'File required' });
+
+      let url = '';
+      if (file.location) {
+        url = getUploadUrl(file, '');
+      } else {
+        const relativePath = path.relative(process.cwd(), file.path).replace(/\\/g, '/');
+        url = `/${relativePath}`;
+      }
+
+      res.status(201).json({
+        url,
+        name: file.originalname,
+        type: file.mimetype,
+        size: file.size
+      });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
   }
 };
 

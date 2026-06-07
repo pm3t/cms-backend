@@ -456,3 +456,124 @@ export class CertificateTemplateService {
     return prisma.certificateTemplate.delete({ where: { id } });
   }
 }
+
+// ===================================================
+// 4. SACRAMENT REQUEST SERVICE
+// ===================================================
+
+export class SacramentRequestService {
+  async list(tenantId: string, filters?: { status?: string; memberId?: string }) {
+    const where: any = { tenantId };
+    if (filters?.status) {
+      where.status = filters.status;
+    }
+    if (filters?.memberId) {
+      where.memberId = filters.memberId;
+    }
+    return prisma.sacramentRequest.findMany({
+      where,
+      include: {
+        member: { select: { id: true, firstName: true, lastName: true, email: true } },
+        certificate: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async get(tenantId: string, id: string) {
+    const request = await prisma.sacramentRequest.findUnique({
+      where: { id },
+      include: {
+        member: true,
+        certificate: true
+      }
+    });
+
+    if (!request || request.tenantId !== tenantId) {
+      throw new Error('Permohonan layanan sakramen tidak ditemukan');
+    }
+
+    return request;
+  }
+
+  async create(tenantId: string, memberId: string, data: any) {
+    const { type, pastorName, date, location, requirements } = data;
+    
+    // verify member
+    const member = await prisma.member.findUnique({ where: { id: memberId } });
+    if (!member || member.tenantId !== tenantId) {
+      throw new Error('Anggota tidak ditemukan');
+    }
+
+    return prisma.sacramentRequest.create({
+      data: {
+        tenantId,
+        memberId,
+        type,
+        status: 'PENDING',
+        pastorName: pastorName || null,
+        date: date ? new Date(date) : null,
+        location: location || null,
+        requirements: requirements || null
+      },
+      include: {
+        member: { select: { id: true, firstName: true, lastName: true } }
+      }
+    });
+  }
+
+  async approve(tenantId: string, id: string, approvalData: any) {
+    const request = await this.get(tenantId, id);
+    if (request.status !== 'PENDING') {
+      throw new Error('Hanya permohonan berstatus PENDING yang dapat disetujui');
+    }
+
+    const certificateNumber = approvalData.certificateNumber || await generateCertificateNumber(tenantId, request.type);
+    
+    const cert = await prisma.certificate.create({
+      data: {
+        tenantId,
+        memberId: request.memberId,
+        type: request.type,
+        certificateNumber,
+        recipientName: `${request.member.firstName} ${request.member.lastName || ''}`.trim(),
+        issuedDate: approvalData.issuedDate ? new Date(approvalData.issuedDate) : new Date(),
+        issuedBy: approvalData.issuedBy || 'Gereja',
+        location: approvalData.location || request.location,
+        fileUrl: approvalData.fileUrl || null,
+        notes: approvalData.notes || request.notes
+      }
+    });
+
+    return prisma.sacramentRequest.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        certificateId: cert.id,
+        notes: approvalData.notes || request.notes
+      },
+      include: {
+        member: { select: { id: true, firstName: true, lastName: true } },
+        certificate: true
+      }
+    });
+  }
+
+  async reject(tenantId: string, id: string, rejectNotes: string) {
+    const request = await this.get(tenantId, id);
+    if (request.status !== 'PENDING') {
+      throw new Error('Hanya permohonan berstatus PENDING yang dapat ditolak');
+    }
+
+    return prisma.sacramentRequest.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        notes: rejectNotes || null
+      },
+      include: {
+        member: { select: { id: true, firstName: true, lastName: true } }
+      }
+    });
+  }
+}

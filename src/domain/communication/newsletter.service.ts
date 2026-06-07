@@ -18,6 +18,13 @@ export class NewsletterService {
     });
   }
 
+  async listPublic(tenantId: string) {
+    return prisma.newsletter.findMany({
+      where: { tenantId, isActive: true },
+      orderBy: { publishDate: 'desc' }
+    });
+  }
+
   async get(tenantId: string, id: string) {
     return prisma.newsletter.findFirst({
       where: { id, tenantId }

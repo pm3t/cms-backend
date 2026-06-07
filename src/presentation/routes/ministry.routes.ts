@@ -28,6 +28,8 @@ router.patch('/volunteer/applications/:applicationId', MinistryController.update
 // Service Roster
 router.get('/roster', MinistryController.getRosters);
 router.post('/roster', MinistryController.createRoster);
+router.put('/roster/:id', MinistryController.updateRoster);
+router.delete('/roster/:id', MinistryController.deleteRoster);
 
 // Talent Database
 router.get('/skills', MinistryController.getSkills);

@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import nodemailer from 'nodemailer';
+import { FacilityService } from '../facility/facility.service';
 
 const jwtSecret = process.env.JWT_SECRET || 'secret';
 
@@ -305,6 +306,20 @@ export class MobileService {
   }
 
   async addMemberSkill(memberId: string, skillId: string, proficiency: number = 3) {
+    const member = await prisma.member.findUnique({ where: { id: memberId } });
+    if (!member) throw new Error('Member tidak ditemukan');
+
+    const skill = await prisma.skill.findFirst({
+      where: {
+        id: skillId,
+        OR: [
+          { tenantId: member.tenantId },
+          { tenantId: null }
+        ]
+      }
+    });
+    if (!skill) throw new Error('Keahlian tidak ditemukan atau akses ditolak');
+
     return prisma.memberSkill.upsert({
       where: { memberId_skillId: { memberId, skillId } },
       update: { proficiency },
@@ -543,6 +558,311 @@ export class MobileService {
   private excludeHash(member: any) {
     const { passwordHash, ...rest } = member;
     return rest;
+  }
+
+  async getCounselors(tenantId: string) {
+    return prisma.user.findMany({
+      where: { tenantId, isSuperAdmin: false },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' }
+    });
+  }
+
+  async getMyCounselings(memberId: string) {
+    return prisma.counselingRecord.findMany({
+      where: { memberId },
+      orderBy: { counselingDate: 'desc' }
+    });
+  }
+
+  async createCounselingBooking(tenantId: string, memberId: string, data: any) {
+    const { title, issueDescription, counselorId, counselingDate } = data;
+    if (!title || !issueDescription || !counselingDate) {
+      throw new Error('Semua kolom wajib diisi');
+    }
+
+    let counselorName = 'Pelayanan Pastoral Umum';
+    if (counselorId) {
+      const counselor = await prisma.user.findUnique({
+        where: { id: counselorId }
+      });
+      if (counselor && counselor.tenantId === tenantId) {
+        counselorName = counselor.name;
+      }
+    }
+
+    return prisma.counselingRecord.create({
+      data: {
+        tenantId,
+        memberId,
+        counselorId: counselorId || null,
+        counselorName,
+        counselingDate: new Date(counselingDate),
+        title,
+        issueDescription,
+        notes: 'Sesi dijadwalkan via mobile jemaat',
+        isPrivate: true
+      }
+    });
+  }
+
+  async getFacilities(tenantId: string) {
+    return prisma.facility.findMany({
+      where: { tenantId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        capacity: true,
+        location: true,
+        description: true,
+        amenities: true
+      },
+      orderBy: { name: 'asc' }
+    });
+  }
+
+  async getMyFacilityBookings(tenantId: string, memberId: string) {
+    return prisma.facilityBooking.findMany({
+      where: {
+        tenantId,
+        notes: {
+          contains: `[MemberId: ${memberId}]`
+        }
+      },
+      include: {
+        facility: {
+          select: {
+            name: true,
+            location: true
+          }
+        }
+      },
+      orderBy: { startTime: 'desc' }
+    });
+  }
+
+  async createFacilityBooking(tenantId: string, memberId: string, data: any) {
+    const { facilityId, purpose, description, startTime, endTime, userNotes } = data;
+    if (!facilityId || !purpose || !startTime || !endTime) {
+      throw new Error('Semua kolom wajib diisi');
+    }
+
+    const member = await prisma.member.findUnique({ where: { id: memberId } });
+    if (!member) throw new Error('Member tidak ditemukan');
+    const fullName = [member.firstName, member.lastName].filter(Boolean).join(' ');
+
+    const facilityService = new FacilityService();
+    // Validate facility belongs to tenant
+    await facilityService.get(tenantId, facilityId);
+
+    // Check conflicts
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+
+    if (end <= start) {
+      throw new Error('Waktu selesai harus setelah waktu mulai');
+    }
+
+    const { available, conflict } = await facilityService.checkAvailability(
+      tenantId, facilityId, start, end
+    );
+
+    if (!available) {
+      throw new Error(`Fasilitas sudah dipesan oleh "${conflict?.requestedBy}" pada waktu tersebut.`);
+    }
+
+    const notesTag = `[MemberId: ${memberId}]`;
+    const finalNotes = userNotes ? `${userNotes.trim()}\n${notesTag}` : notesTag;
+
+    return prisma.facilityBooking.create({
+      data: {
+        tenantId,
+        facilityId,
+        requestedBy: fullName,
+        purpose,
+        description,
+        startTime: start,
+        endTime: end,
+        status: 'PENDING',
+        notes: finalNotes
+      },
+      include: {
+        facility: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+  }
+
+  async getSmallGroups(tenantId: string, memberId: string) {
+    const groups = await prisma.smallGroup.findMany({
+      where: { tenantId },
+      include: {
+        members: {
+          include: {
+            member: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true
+              }
+            }
+          }
+        },
+        joinRequests: {
+          where: { memberId }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    return groups.map(g => {
+      const isJoined = g.members.some(m => m.memberId === memberId);
+      const joinRequest = g.joinRequests[0];
+      const leaderMember = g.members.find(m => m.role === 'LEADER');
+      const leaderName = leaderMember ? `${leaderMember.member.firstName} ${leaderMember.member.lastName || ''}`.trim() : 'Belum ada ketua';
+      const leaderPhone = leaderMember ? leaderMember.member.phone : null;
+      const leaderEmail = leaderMember ? leaderMember.member.email : null;
+
+      return {
+        id: g.id,
+        name: g.name,
+        description: g.description,
+        type: g.type,
+        meetingSchedule: g.meetingSchedule,
+        location: g.location,
+        memberCount: g.members.length,
+        isJoined,
+        joinStatus: joinRequest ? joinRequest.status : null,
+        leader: {
+          name: leaderName,
+          phone: leaderPhone,
+          email: leaderEmail
+        }
+      };
+    });
+  }
+
+  async requestToJoinSmallGroup(tenantId: string, memberId: string, groupId: string, userNotes?: string) {
+    const group = await prisma.smallGroup.findUnique({
+      where: { id: groupId },
+      include: {
+        members: {
+          include: {
+            member: true
+          }
+        }
+      }
+    });
+
+    if (!group || group.tenantId !== tenantId) {
+      throw new Error('Kelompok sel tidak ditemukan.');
+    }
+
+    const isMember = group.members.some(m => m.memberId === memberId);
+    if (isMember) {
+      throw new Error('Anda sudah bergabung dalam kelompok sel ini.');
+    }
+
+    const requester = await prisma.member.findUnique({
+      where: { id: memberId }
+    });
+    if (!requester) {
+      throw new Error('Anggota tidak ditemukan.');
+    }
+
+    const request = await prisma.smallGroupJoinRequest.upsert({
+      where: {
+        groupId_memberId: {
+          groupId,
+          memberId
+        }
+      },
+      update: {
+        status: 'PENDING',
+        notes: userNotes || null
+      },
+      create: {
+        tenantId,
+        groupId,
+        memberId,
+        status: 'PENDING',
+        notes: userNotes || null
+      }
+    });
+
+    const leader = group.members.find(m => m.role === 'LEADER');
+    if (leader && leader.member.email) {
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+      if (smtpHost && smtpUser && smtpPass) {
+        try {
+          const transporter = nodemailer.createTransport({
+            host: smtpHost,
+            port: parseInt(process.env.SMTP_PORT || '587'),
+            secure: process.env.SMTP_PORT === '465',
+            auth: { user: smtpUser, pass: smtpPass }
+          });
+          const requesterName = `${requester.firstName} ${requester.lastName || ''}`.trim();
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || smtpUser,
+            to: leader.member.email,
+            subject: `Permohonan Gabung Kelompok Sel - ${group.name}`,
+            text: `Halo ${leader.member.firstName},\n\n` +
+                  `Jemaat atas nama ${requesterName} mengajukan permohonan untuk bergabung dalam kelompok sel Anda (${group.name}).\n\n` +
+                  `Detail Pemohon:\n` +
+                  `- Nama: ${requesterName}\n` +
+                  `- Telepon: ${requester.phone || '-'}\n` +
+                  `- Email: ${requester.email || '-'}\n` +
+                  `- Catatan: ${userNotes || '-'}\n\n` +
+                  `Mohon segera hubungi ybs untuk proses penyambutan/pemuridan lebih lanjut.\n\n` +
+                  `Terima kasih,\nCMS Eklesia`
+          });
+        } catch (err) {
+          console.error('Failed to send SmallGroup join request notification email:', err);
+        }
+      }
+    }
+
+    return request;
+  }
+
+  async getSacramentRequests(tenantId: string, memberId: string) {
+    return prisma.sacramentRequest.findMany({
+      where: { tenantId, memberId },
+      include: {
+        certificate: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async createSacramentRequest(tenantId: string, memberId: string, data: any) {
+    const { type, pastorName, date, location, requirements } = data;
+    
+    // verify member
+    const member = await prisma.member.findUnique({ where: { id: memberId } });
+    if (!member || member.tenantId !== tenantId) {
+      throw new Error('Anggota tidak ditemukan');
+    }
+
+    return prisma.sacramentRequest.create({
+      data: {
+        tenantId,
+        memberId,
+        type,
+        status: 'PENDING',
+        pastorName: pastorName || null,
+        date: date ? new Date(date) : null,
+        location: location || null,
+        requirements: requirements || null
+      }
+    });
   }
 }
 

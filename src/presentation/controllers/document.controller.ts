@@ -4,6 +4,7 @@ import {
   DocumentService,
   CertificateService,
   CertificateTemplateService,
+  SacramentRequestService,
 } from '../../domain/document/document.service';
 import { DocumentCategory, CertificateType } from '@prisma/client';
 import { getUploadUrl } from '../middlewares/upload.middleware';
@@ -11,6 +12,7 @@ import { getUploadUrl } from '../middlewares/upload.middleware';
 const documentService = new DocumentService();
 const certificateService = new CertificateService();
 const templateService = new CertificateTemplateService();
+const requestService = new SacramentRequestService();
 
 // Helper: build file info from multer uploaded file
 function buildFileInfo(file: any, tenantId: string) {
@@ -259,6 +261,64 @@ export const documentController = {
     try {
       await templateService.delete(req.user.tenantId, req.params.id);
       res.status(204).send();
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+
+  // ─── SACRAMENT REQUESTS ──────────────────────────────────────────────────────
+  async getSacramentRequests(req: any, res: Response, _next: NextFunction) {
+    try {
+      const { status, memberId } = req.query;
+      const filters: any = {};
+      if (status) filters.status = String(status);
+      if (memberId) filters.memberId = String(memberId);
+
+      const records = await requestService.list(req.user.tenantId, filters);
+      res.json(records);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+
+  async getSacramentRequestById(req: any, res: Response, _next: NextFunction) {
+    try {
+      const record = await requestService.get(req.user.tenantId, req.params.id);
+      res.json(record);
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  },
+
+  async approveSacramentRequest(req: any, res: Response, _next: NextFunction) {
+    try {
+      const data = { ...req.body };
+      // Parse parameters
+      for (const key of Object.keys(data)) {
+        if (data[key] === 'null' || data[key] === 'undefined' || data[key] === '') {
+          data[key] = null;
+        }
+      }
+
+      // If a certificate PDF file is uploaded, catch it
+      const file = req.file as Express.Multer.File | undefined;
+      if (file) {
+        const fileInfo = buildFileInfo(file, req.user.tenantId);
+        data.fileUrl = fileInfo.url;
+      }
+
+      const record = await requestService.approve(req.user.tenantId, req.params.id, data);
+      res.json(record);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+
+  async rejectSacramentRequest(req: any, res: Response, _next: NextFunction) {
+    try {
+      const { notes } = req.body;
+      const record = await requestService.reject(req.user.tenantId, req.params.id, notes);
+      res.json(record);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }

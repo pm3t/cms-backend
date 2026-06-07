@@ -77,6 +77,8 @@ model Tenant {
   bulletins           Bulletin[]
   digitalConfig       DigitalConfig?
   skills              Skill[]
+  smallGroupJoinRequests SmallGroupJoinRequest[]
+  sacramentRequests   SacramentRequest[]
 }
 
 model Branch {
@@ -238,7 +240,9 @@ model Member {
   careGroupMemberships CareGroupMember[]
   crisisRecords       CrisisRecord[]
   emergencyContacts   EmergencyContact[]
+  smallGroupJoinRequests SmallGroupJoinRequest[]
   certificates        Certificate[]
+  sacramentRequests   SacramentRequest[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -590,6 +594,7 @@ model SmallGroup {
   
   members     SmallGroupMember[]
   meetings    SmallGroupMeeting[]
+  joinRequests SmallGroupJoinRequest[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -606,6 +611,26 @@ model SmallGroupMember {
   role        GroupRole  @default(MEMBER)
   joinedAt    DateTime   @default(now())
   
+  @@unique([groupId, memberId])
+}
+
+model SmallGroupJoinRequest {
+  id          String     @id @default(uuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  groupId     String
+  group       SmallGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  memberId    String
+  member      Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  
+  status      String     @default("PENDING") // PENDING, APPROVED, REJECTED
+  notes       String?    @db.Text
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
   @@unique([groupId, memberId])
 }
 
@@ -1066,7 +1091,36 @@ model Certificate {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
+  sacramentRequest  SacramentRequest? @relation("SacramentRequestCertificate")
+
   @@unique([tenantId, certificateNumber])
+}
+
+model SacramentRequest {
+  id                String          @id @default(uuid())
+  tenantId          String
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  memberId          String
+  member            Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  
+  type              CertificateType // BAPTISM, MARRIAGE, CONFIRMATION, MEMBERSHIP, OTHER
+  status            String          @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  pastorName        String?
+  date              DateTime?
+  location          String?
+  
+  // requirements: JSON array of uploaded documents/keys
+  requirements      Json?
+  
+  notes             String?         @db.Text
+  
+  certificateId     String?         @unique
+  certificate       Certificate?    @relation("SacramentRequestCertificate", fields: [certificateId], references: [id], onDelete: SetNull)
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 }
 
 model CertificateTemplate {

@@ -196,27 +196,25 @@ export class BillingService {
         if (newPrice > currentPrice) {
             console.log(`[BillingService] Initiating upgrade for tenant ${tenantId} to ${newPlan.name} (Full payment required)`);
             
-            return await prisma.$transaction(async (tx) => {
-                // Set as pending plan instead of immediate update
-                await tx.subscription.update({
-                    where: { id: currentSub.id },
-                    data: { 
-                        pendingPlanId: newPlanId,
-                        pendingPlanEffectiveAt: new Date()
-                    }
-                });
-
-                // Generate invoice for the FULL new plan price
-                const invoiceResult = await this.generateMonthlyInvoice(tenantId, tx, newPlanId);
-                
-                return {
-                    success: true,
-                    type: 'upgrade',
-                    message: `Invoice untuk paket ${newPlan.name} telah dibuat. Silakan selesaikan pembayaran.`,
-                    paymentUrl: invoiceResult.paymentUrl,
-                    invoice: invoiceResult.invoice
-                };
+            // Set as pending plan instead of immediate update
+            await prisma.subscription.update({
+                where: { id: currentSub.id },
+                data: { 
+                    pendingPlanId: newPlanId,
+                    pendingPlanEffectiveAt: new Date()
+                }
             });
+
+            // Generate invoice for the FULL new plan price
+            const invoiceResult = await this.generateMonthlyInvoice(tenantId, undefined, newPlanId);
+            
+            return {
+                success: true,
+                type: 'upgrade',
+                message: `Invoice untuk paket ${newPlan.name} telah dibuat. Silakan selesaikan pembayaran.`,
+                paymentUrl: invoiceResult.paymentUrl,
+                invoice: invoiceResult.invoice
+            };
         }
 
         // 3. If DOWNGRADE (Lower Price)
@@ -504,12 +502,9 @@ export class BillingService {
                 const xenditStatus = await xenditService.getInvoiceStatus(xenditInvoiceId);
 
                 if (xenditStatus.status === 'PAID') {
-                    await prisma.invoice.update({
-                        where: { id: rawInvoice.id },
-                        data: { status: 'paid', paidAt: new Date() }
-                    });
+                    const updatedInvoice = await this.handleInvoicePaid(xenditInvoiceId, new Date());
                     rawInvoice.status = 'paid';
-                    rawInvoice.paidAt = new Date();
+                    rawInvoice.paidAt = updatedInvoice.paidAt;
                 } else if (xenditStatus.status === 'EXPIRED') {
                     await prisma.invoice.update({
                         where: { id: rawInvoice.id },
@@ -547,10 +542,7 @@ export class BillingService {
 
                 const xenditStatus = await xenditService.getInvoiceStatus(xenditId);
                 if (xenditStatus.status === 'PAID') {
-                    await prisma.invoice.update({
-                        where: { id: inv.id },
-                        data: { status: 'paid', paidAt: new Date() }
-                    });
+                    await this.handleInvoicePaid(xenditId, new Date());
                 } else if (xenditStatus.status === 'EXPIRED') {
                     await prisma.invoice.update({
                         where: { id: inv.id },

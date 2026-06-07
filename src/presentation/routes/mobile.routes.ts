@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { mobileController } from '../controllers/mobile.controller';
 import { digitalController } from '../controllers/digital.controller';
 import { authenticateJWT } from '../middlewares/auth.middleware';
-import { receiptUpload, photoUpload } from '../middlewares/upload.middleware';
+import { receiptUpload, photoUpload, documentUpload } from '../middlewares/upload.middleware';
 import { SubscriptionGate, FeatureGate } from '../middlewares/featureGate.middleware';
 
 const mobileRouter = Router();
@@ -56,6 +56,19 @@ mobileRouter.post('/volunteer/:id/apply', mobileController.applyForVolunteer);
 mobileRouter.get('/roster', mobileController.getMyRosters);
 mobileRouter.get('/newsletters', mobileController.getNewsletters);
 mobileRouter.get('/certificates', mobileController.getCertificates);
+mobileRouter.get('/counselors', mobileController.getCounselors);
+mobileRouter.get('/counseling', mobileController.getMyCounselings);
+mobileRouter.post('/counseling', mobileController.createCounseling);
+mobileRouter.get('/facilities', mobileController.getFacilities);
+mobileRouter.get('/facilities/bookings', mobileController.getMyFacilityBookings);
+mobileRouter.post('/facilities/bookings', mobileController.createFacilityBooking);
+mobileRouter.get('/small-groups', mobileController.getSmallGroups);
+mobileRouter.post('/small-groups/join', mobileController.requestToJoinSmallGroup);
+
+// Sacrament & Document Requests
+mobileRouter.get('/sacrament-requests', mobileController.getSacramentRequests);
+mobileRouter.post('/sacrament-requests', mobileController.createSacramentRequest);
+mobileRouter.post('/sacrament-requests/upload', documentUpload.single('file'), mobileController.uploadSacramentRequirement);
 
 export default mobileRouter;
 

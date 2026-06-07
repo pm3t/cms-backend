@@ -191,6 +191,64 @@ export class MinistryService {
         });
     }
 
+    static async updateRoster(tenantId: string, id: string, data: {
+        date: Date,
+        worshipServiceId?: string | null,
+        eventId?: string | null,
+        startTime?: string,
+        endTime?: string,
+        positions: { role: string, memberId?: string | null, notes?: string }[]
+    }) {
+        const { positions, ...rosterData } = data;
+
+        // Verify roster belongs to a ministry of this tenant
+        const roster = await prisma.serviceRoster.findFirst({
+            where: {
+                id,
+                ministry: { tenantId }
+            }
+        });
+        if (!roster) throw new Error('Roster not found');
+
+        return prisma.$transaction(async (tx) => {
+            // 1. Delete all existing positions for this roster
+            await tx.servicePosition.deleteMany({
+                where: { rosterId: id }
+            });
+
+            // 2. Update the roster header details and recreate positions
+            return tx.serviceRoster.update({
+                where: { id },
+                data: {
+                    ...rosterData,
+                    positions: {
+                        create: positions.map(p => ({
+                            role: p.role,
+                            memberId: p.memberId || null,
+                            notes: p.notes
+                        }))
+                    }
+                },
+                include: { positions: true }
+            });
+        });
+    }
+
+    static async deleteRoster(tenantId: string, id: string) {
+        // Verify roster belongs to a ministry of this tenant
+        const roster = await prisma.serviceRoster.findFirst({
+            where: {
+                id,
+                ministry: { tenantId }
+            }
+        });
+        if (!roster) throw new Error('Roster not found');
+
+        return prisma.serviceRoster.delete({
+            where: { id }
+        });
+    }
+
     // --- Skill/Talent Database ---
     static async listSkills(tenantId: string) {
         return prisma.skill.findMany({
@@ -201,7 +259,15 @@ export class MinistryService {
                 ]
             },
             include: {
-                _count: { select: { members: true } }
+                _count: {
+                    select: {
+                        members: {
+                            where: {
+                                member: { tenantId }
+                            }
+                        }
+                    }
+                }
             },
             orderBy: { name: 'asc' }
         });
@@ -230,7 +296,23 @@ export class MinistryService {
         });
     }
 
-    static async addSkillToMember(memberId: string, skillId: string, proficiency?: number) {
+    static async addSkillToMember(tenantId: string, memberId: string, skillId: string, proficiency?: number) {
+        // Verify member belongs to tenant
+        const member = await prisma.member.findFirst({ where: { id: memberId, tenantId } });
+        if (!member) throw new Error('Member not found or access denied');
+
+        // Verify skill is either global (tenantId: null) or belongs to this tenant
+        const skill = await prisma.skill.findFirst({
+            where: {
+                id: skillId,
+                OR: [
+                    { tenantId },
+                    { tenantId: null }
+                ]
+            }
+        });
+        if (!skill) throw new Error('Skill not found or access denied');
+
         return prisma.memberSkill.upsert({
             where: { memberId_skillId: { memberId, skillId } },
             update: { proficiency },
@@ -238,7 +320,11 @@ export class MinistryService {
         });
     }
 
-    static async removeSkillFromMember(memberId: string, skillId: string) {
+    static async removeSkillFromMember(tenantId: string, memberId: string, skillId: string) {
+        // Verify member belongs to tenant
+        const member = await prisma.member.findFirst({ where: { id: memberId, tenantId } });
+        if (!member) throw new Error('Member not found or access denied');
+
         return prisma.memberSkill.delete({
             where: { memberId_skillId: { memberId, skillId } }
         });

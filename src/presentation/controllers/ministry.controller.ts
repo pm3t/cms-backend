@@ -149,6 +149,31 @@ export class MinistryController {
         }
     }
 
+    static async updateRoster(req: Request, res: Response) {
+        try {
+            const tenantId = (req as any).user.tenantId;
+            const { id } = req.params;
+            const roster = await MinistryService.updateRoster(tenantId, id as string, {
+                ...req.body,
+                date: new Date(req.body.date)
+            });
+            res.json(roster);
+        } catch (err: any) {
+            res.status(500).json({ error: err.message });
+        }
+    }
+
+    static async deleteRoster(req: Request, res: Response) {
+        try {
+            const tenantId = (req as any).user.tenantId;
+            const { id } = req.params;
+            await MinistryService.deleteRoster(tenantId, id as string);
+            res.status(204).send();
+        } catch (err: any) {
+            res.status(500).json({ error: err.message });
+        }
+    }
+
     static async getSkills(req: Request, res: Response) {
         try {
             const tenantId = (req as any).user.tenantId;
@@ -195,9 +220,10 @@ export class MinistryController {
 
     static async assignSkill(req: Request, res: Response) {
         try {
+            const tenantId = (req as any).user.tenantId;
             const { memberId } = req.params;
             const { skillId, proficiency } = req.body;
-            const result = await MinistryService.addSkillToMember(memberId as string, skillId, proficiency);
+            const result = await MinistryService.addSkillToMember(tenantId, memberId as string, skillId, proficiency);
             res.status(201).json(result);
         } catch (err: any) {
             res.status(500).json({ error: err.message });
@@ -206,8 +232,9 @@ export class MinistryController {
 
     static async removeSkill(req: Request, res: Response) {
         try {
+            const tenantId = (req as any).user.tenantId;
             const { memberId, skillId } = req.params;
-            await MinistryService.removeSkillFromMember(memberId as string, skillId as string);
+            await MinistryService.removeSkillFromMember(tenantId, memberId as string, skillId as string);
             res.status(204).send();
         } catch (err: any) {
             res.status(500).json({ error: err.message });
