@@ -81,7 +81,7 @@ export async function xenditWebhookHandler(req: Request, res: Response) {
         const tenantName = invoice.tenant.name;
 
         // 3. Process by status
-        if (xenditStatus === 'PAID') {
+        if (xenditStatus === 'PAID' || xenditStatus === 'SETTLED') {
             await handlePaid(invoice as any, tenantId, tenantEmail, tenantName, payload);
         } else if (xenditStatus === 'EXPIRED' || xenditStatus === 'FAILED') {
             await handleFailedOrExpired(invoice as any, tenantId, tenantEmail, tenantName, xenditStatus);
@@ -100,33 +100,56 @@ export async function xenditWebhookHandler(req: Request, res: Response) {
 async function handlePaid(invoice: any, tenantId: string, tenantEmail: string, tenantName: string, payload: any) {
     const paidAt = payload.paid_at ? new Date(payload.paid_at) : new Date();
 
-    // a. Update invoice status
-    await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { status: 'paid', paidAt }
-    });
-
-    // b. Update subscription: set active, extend end date by 30 days
-    if (invoice.subscriptionId) {
-        const currentSub = await prisma.subscription.findUnique({
-            where: { id: invoice.subscriptionId }
+    // a & b. Update invoice status & subscription using transaction
+    await prisma.$transaction(async (tx) => {
+        await tx.invoice.update({
+            where: { id: invoice.id },
+            data: { status: 'paid', paidAt }
         });
 
-        if (currentSub) {
-            const newEndDate = new Date(currentSub.endDate);
-            newEndDate.setDate(newEndDate.getDate() + 30);
-
-            await prisma.subscription.update({
-                where: { id: invoice.subscriptionId },
-                data: {
-                    status: 'active',
-                    endDate: newEndDate,
-                    gracePeriodEndsAt: null,
-                    suspendedAt: null
-                }
+        if (invoice.subscriptionId) {
+            const currentSub = await tx.subscription.findUnique({
+                where: { id: invoice.subscriptionId }
             });
+
+            if (currentSub) {
+                if (currentSub.pendingPlanId) {
+                    // Upgrade: Switch plan and set new billing date
+                    console.log(`[XenditWebhook] Finalizing upgrade for tenant ${tenantId} to plan ${currentSub.pendingPlanId}`);
+                    const nextBillingDate = new Date(paidAt);
+                    nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+
+                    await tx.subscription.update({
+                        where: { id: invoice.subscriptionId },
+                        data: {
+                            planId: currentSub.pendingPlanId,
+                            status: 'active',
+                            endDate: nextBillingDate,
+                            pendingPlanId: null,
+                            pendingPlanEffectiveAt: null,
+                            trialEndsAt: null,
+                            gracePeriodEndsAt: null,
+                            suspendedAt: null
+                        }
+                    });
+                } else {
+                    // Renewal: extend end date by 30 days
+                    const newEndDate = new Date(currentSub.endDate);
+                    newEndDate.setDate(newEndDate.getDate() + 30);
+
+                    await tx.subscription.update({
+                        where: { id: invoice.subscriptionId },
+                        data: {
+                            status: 'active',
+                            endDate: newEndDate,
+                            gracePeriodEndsAt: null,
+                            suspendedAt: null
+                        }
+                    });
+                }
+            }
         }
-    }
+    });
 
     // c. Send payment confirmation email
     if (tenantEmail) {
@@ -140,7 +163,7 @@ async function handlePaid(invoice: any, tenantId: string, tenantEmail: string, t
         });
     }
 
-    console.log(`[XenditWebhook] Invoice ${invoice.id} marked PAID, subscription extended.`);
+    console.log(`[XenditWebhook] Invoice ${invoice.id} marked PAID, subscription updated.`);
 }
 
 async function handleFailedOrExpired(

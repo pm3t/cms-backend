@@ -200,12 +200,41 @@ export class FacilityBookingService {
   }
 
   async updateStatus(tenantId: string, id: string, status: BookingStatus, approvedBy?: string) {
-    await this.get(tenantId, id);
-    return prisma.facilityBooking.update({
+    const booking = await this.get(tenantId, id);
+    const updated = await prisma.facilityBooking.update({
       where: { id },
       data: { status, approvedBy: approvedBy || null },
       include: { facility: { select: { id: true, name: true } } },
     });
+
+    // Extract memberId from notes if exists
+    const match = booking?.notes?.match(/\[MemberId: ([a-f0-9\-]{36})\]/i);
+    const memberId = match ? match[1] : null;
+
+    if (memberId) {
+      try {
+        const { NotificationService } = await import('../notification/notification.service');
+        const notificationService = new NotificationService();
+
+        const title = status === 'APPROVED' ? '✅ Peminjaman Fasilitas Disetujui' : '❌ Peminjaman Fasilitas Ditolak';
+        const body = status === 'APPROVED'
+          ? `Ruangan "${updated.facility?.name}" telah disetujui untuk Anda gunakan.`
+          : `Ruangan "${updated.facility?.name}" ditolak untuk peminjaman Anda.`;
+
+        await notificationService.create({
+          tenantId,
+          memberId,
+          type: status === 'APPROVED' ? 'APPROVAL' : 'REJECTION',
+          title,
+          body,
+          data: { bookingId: id }
+        });
+      } catch (err) {
+        console.error('Failed to create booking notification:', err);
+      }
+    }
+
+    return updated;
   }
 
   async delete(tenantId: string, id: string) {

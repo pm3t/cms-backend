@@ -4,12 +4,14 @@ import { MobileService } from '../../domain/mobile/mobile.service';
 import { DigitalService } from '../../domain/digital/digital.service';
 import { CertificateService } from '../../domain/document/document.service';
 import { NewsletterService } from '../../domain/communication/newsletter.service';
+import { NotificationService } from '../../domain/notification/notification.service';
 import { getUploadUrl } from '../middlewares/upload.middleware';
 
 const mobileService = new MobileService();
 const digitalService = new DigitalService();
 const certificateService = new CertificateService();
 const newsletterService = new NewsletterService();
+const notificationService = new NotificationService();
 
 export const mobileController = {
   async register(req: any, res: Response) {
@@ -282,6 +284,33 @@ export const mobileController = {
         type: file.mimetype,
         size: file.size
       });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  },
+
+  async getNotifications(req: any, res: Response) {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      res.json(await notificationService.getByMember(req.user.memberId, page));
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  },
+
+  async markAsRead(req: any, res: Response) {
+    try {
+      await notificationService.markAsRead(req.params.id, req.user.memberId);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  },
+
+  async markAllAsRead(req: any, res: Response) {
+    try {
+      await notificationService.markAllAsRead(req.user.memberId);
+      res.json({ success: true });
     } catch (e: any) {
       res.status(400).json({ error: e.message });
     }

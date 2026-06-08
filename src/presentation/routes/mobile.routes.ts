@@ -70,5 +70,10 @@ mobileRouter.get('/sacrament-requests', mobileController.getSacramentRequests);
 mobileRouter.post('/sacrament-requests', mobileController.createSacramentRequest);
 mobileRouter.post('/sacrament-requests/upload', documentUpload.single('file'), mobileController.uploadSacramentRequirement);
 
+// In-App Inbox Notifications
+mobileRouter.get('/notifications', mobileController.getNotifications);
+mobileRouter.patch('/notifications/read-all', mobileController.markAllAsRead);
+mobileRouter.patch('/notifications/:id/read', mobileController.markAsRead);
+
 export default mobileRouter;
 

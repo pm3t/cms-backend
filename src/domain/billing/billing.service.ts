@@ -63,6 +63,9 @@ export class BillingService {
      * Get active subscription details for a tenant
      */
     async getSubscription(tenantId: string) {
+        // Sync pending invoices status from Xendit first
+        await this.syncPendingInvoices(tenantId);
+
         // Debug: Find ANY subscription first to see if it even exists
         const sub = await prisma.subscription.findFirst({
             where: { tenantId },
@@ -318,9 +321,28 @@ export class BillingService {
                         endDate: nextBillingDate, // Set new billing date
                         pendingPlanId: null,
                         pendingPlanEffectiveAt: null,
-                        trialEndsAt: null // Trial is over now that they paid
+                        trialEndsAt: null, // Trial is over now that they paid
+                        gracePeriodEndsAt: null,
+                        suspendedAt: null
                     }
                 });
+            } else if (invoice.subscriptionId) {
+                console.log(`[BillingService] Extending subscription for tenant ${invoice.tenantId} by 30 days`);
+                const currentSub = invoice.subscription;
+                if (currentSub) {
+                    const newEndDate = new Date(currentSub.endDate);
+                    newEndDate.setDate(newEndDate.getDate() + 30);
+
+                    await tx.subscription.update({
+                        where: { id: invoice.subscriptionId },
+                        data: {
+                            status: 'active',
+                            endDate: newEndDate,
+                            gracePeriodEndsAt: null,
+                            suspendedAt: null
+                        }
+                    });
+                }
             }
 
             return updatedInvoice;
@@ -466,6 +488,7 @@ export class BillingService {
      * List all invoices for a tenant
      */
     async listInvoices(tenantId: string): Promise<any[]> {
+        await this.syncPendingInvoices(tenantId);
         const invoices = await prisma.invoice.findMany({
             where: { tenantId },
             include: {
@@ -501,7 +524,7 @@ export class BillingService {
             try {
                 const xenditStatus = await xenditService.getInvoiceStatus(xenditInvoiceId);
 
-                if (xenditStatus.status === 'PAID') {
+                if (xenditStatus.status === 'PAID' || xenditStatus.status === 'SETTLED') {
                     const updatedInvoice = await this.handleInvoicePaid(xenditInvoiceId, new Date());
                     rawInvoice.status = 'paid';
                     rawInvoice.paidAt = updatedInvoice.paidAt;
@@ -541,7 +564,7 @@ export class BillingService {
                 if (!xenditId) return { id: inv.id, skipped: true };
 
                 const xenditStatus = await xenditService.getInvoiceStatus(xenditId);
-                if (xenditStatus.status === 'PAID') {
+                if (xenditStatus.status === 'PAID' || xenditStatus.status === 'SETTLED') {
                     await this.handleInvoicePaid(xenditId, new Date());
                 } else if (xenditStatus.status === 'EXPIRED') {
                     await prisma.invoice.update({

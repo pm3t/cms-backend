@@ -54,6 +54,7 @@ import mobileRoutes from './presentation/routes/mobile.routes';
 import digitalRoutes from './presentation/routes/digital.routes';
 import jobRoutes from './presentation/routes/job.routes';
 import { startSubscriptionCronJobs } from './jobs/subscription.job';
+import { startNotificationCronJobs } from './jobs/notification.job';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/tenant', tenantRoutes);
@@ -82,6 +83,7 @@ app.use('/api/jobs', jobRoutes);
 
 // Start Cron Jobs
 startSubscriptionCronJobs();
+startNotificationCronJobs();
 
 // Health Check
 app.get('/health', (req: Request, res: Response) => {

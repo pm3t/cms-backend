@@ -53,7 +53,7 @@ export class GivingService {
     async handleXenditCallback(payload: any) {
         const { external_id, status, amount, metadata } = payload;
         
-        if (status === 'PAID' && metadata?.type === 'ONLINE_DONATION') {
+        if ((status === 'PAID' || status === 'SETTLED') && metadata?.type === 'ONLINE_DONATION') {
             const { tenantId, memberId, projectId, category, description } = metadata;
 
             // Check if already processed

@@ -69,4 +69,41 @@ export class UserService {
             }
         });
     }
+
+    /**
+     * Delete an admin user for a tenant
+     */
+    async deleteUser(tenantId: string, userId: string, requesterId: string) {
+        if (userId === requesterId) {
+            throw new Error('Anda tidak dapat menghapus akun Anda sendiri.');
+        }
+
+        const user = await prisma.user.findFirst({
+            where: { id: userId, tenantId }
+        });
+
+        if (!user) throw new Error('User tidak ditemukan.');
+
+        return prisma.user.delete({
+            where: { id: userId }
+        });
+    }
+
+    /**
+     * Reset password of an admin user for a tenant
+     */
+    async resetPassword(tenantId: string, userId: string, newPassword: string) {
+        const user = await prisma.user.findFirst({
+            where: { id: userId, tenantId }
+        });
+
+        if (!user) throw new Error('User tidak ditemukan.');
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        return prisma.user.update({
+            where: { id: userId },
+            data: { password: hashedPassword }
+        });
+    }
 }

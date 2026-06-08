@@ -477,40 +477,28 @@ export class MobileService {
 
     console.log(`[forgotPassword] OTP reset code for member ${member.firstName}: ${otp}`);
 
+    await prisma.notification.create({
+      data: {
+        tenantId,
+        memberId: member.id,
+        type: 'SYSTEM',
+        title: 'Reset Password OTP',
+        body: `Kode OTP untuk mereset password Anda adalah: ${otp}. Kode ini berlaku selama 15 menit.`
+      }
+    });
+
     await prisma.communicationLog.create({
       data: {
         tenantId,
-        recipient: member.email!,
+        recipient: member.email || member.phone || member.id,
         subject: 'Reset Password OTP',
         body: `Kode OTP untuk mereset password Anda adalah: ${otp}. Kode ini berlaku selama 15 menit.`,
-        channel: 'EMAIL',
+        channel: 'INBOX',
         status: 'SENT'
       }
     });
 
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
-    if (smtpHost && smtpUser && smtpPass) {
-      try {
-        const transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: parseInt(process.env.SMTP_PORT || '587'),
-          secure: process.env.SMTP_PORT === '465',
-          auth: { user: smtpUser, pass: smtpPass }
-        });
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || smtpUser,
-          to: member.email!,
-          subject: 'Reset Password OTP',
-          text: `Kode OTP untuk mereset password Anda adalah: ${otp}. Kode ini berlaku selama 15 menit.`
-        });
-      } catch (err) {
-        console.error('Failed to send SMTP email:', err);
-      }
-    }
-
-    return { message: 'Kode OTP telah dikirim ke email Anda.' };
+    return { message: 'Kode OTP telah dikirim ke Inbox aplikasi Anda.' };
   }
 
   async resetPassword(tenantId: string, data: any) {
@@ -796,37 +784,24 @@ export class MobileService {
     });
 
     const leader = group.members.find(m => m.role === 'LEADER');
-    if (leader && leader.member.email) {
-      const smtpHost = process.env.SMTP_HOST;
-      const smtpUser = process.env.SMTP_USER;
-      const smtpPass = process.env.SMTP_PASS;
-      if (smtpHost && smtpUser && smtpPass) {
-        try {
-          const transporter = nodemailer.createTransport({
-            host: smtpHost,
-            port: parseInt(process.env.SMTP_PORT || '587'),
-            secure: process.env.SMTP_PORT === '465',
-            auth: { user: smtpUser, pass: smtpPass }
-          });
-          const requesterName = `${requester.firstName} ${requester.lastName || ''}`.trim();
-          await transporter.sendMail({
-            from: process.env.SMTP_FROM || smtpUser,
-            to: leader.member.email,
-            subject: `Permohonan Gabung Kelompok Sel - ${group.name}`,
-            text: `Halo ${leader.member.firstName},\n\n` +
-                  `Jemaat atas nama ${requesterName} mengajukan permohonan untuk bergabung dalam kelompok sel Anda (${group.name}).\n\n` +
-                  `Detail Pemohon:\n` +
-                  `- Nama: ${requesterName}\n` +
-                  `- Telepon: ${requester.phone || '-'}\n` +
-                  `- Email: ${requester.email || '-'}\n` +
-                  `- Catatan: ${userNotes || '-'}\n\n` +
-                  `Mohon segera hubungi ybs untuk proses penyambutan/pemuridan lebih lanjut.\n\n` +
-                  `Terima kasih,\nCMS Eklesia`
-          });
-        } catch (err) {
-          console.error('Failed to send SmallGroup join request notification email:', err);
+    if (leader) {
+      const requesterName = `${requester.firstName} ${requester.lastName || ''}`.trim();
+      await prisma.notification.create({
+        data: {
+          tenantId,
+          memberId: leader.memberId,
+          type: 'SYSTEM',
+          title: `Permohonan Gabung Kelompok Sel - ${group.name}`,
+          body: `Halo ${leader.member.firstName},\n\n` +
+                `Jemaat atas nama ${requesterName} mengajukan permohonan untuk bergabung dalam kelompok sel Anda (${group.name}).\n\n` +
+                `Detail Pemohon:\n` +
+                `- Nama: ${requesterName}\n` +
+                `- Telepon: ${requester.phone || '-'}\n` +
+                `- Email: ${requester.email || '-'}\n` +
+                `- Catatan: ${userNotes || '-'}\n\n` +
+                `Mohon segera hubungi ybs untuk proses penyambutan/pemuridan lebih lanjut.`
         }
-      }
+      });
     }
 
     return request;

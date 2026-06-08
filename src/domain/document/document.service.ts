@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { DocumentCategory, CertificateType } from '@prisma/client';
 import path from 'path';
 import fs from 'fs';
+import { NotificationService } from '../notification/notification.service';
+
+const notificationService = new NotificationService();
 
 // ===================================================
 // Validation Schemas
@@ -545,7 +548,7 @@ export class SacramentRequestService {
       }
     });
 
-    return prisma.sacramentRequest.update({
+    const updated = await prisma.sacramentRequest.update({
       where: { id },
       data: {
         status: 'APPROVED',
@@ -557,6 +560,21 @@ export class SacramentRequestService {
         certificate: true
       }
     });
+
+    try {
+      await notificationService.create({
+        tenantId,
+        memberId: request.memberId,
+        type: 'APPROVAL',
+        title: '✅ Pengajuan Sakramen Disetujui',
+        body: `Pengajuan sakramen ${request.type} Anda telah disetujui. Sertifikat digital sudah tersedia.`,
+        data: { requestId: request.id, certificateId: cert.id },
+      });
+    } catch (err) {
+      console.error('Failed to create sacrament approval notification:', err);
+    }
+
+    return updated;
   }
 
   async reject(tenantId: string, id: string, rejectNotes: string) {
@@ -565,7 +583,7 @@ export class SacramentRequestService {
       throw new Error('Hanya permohonan berstatus PENDING yang dapat ditolak');
     }
 
-    return prisma.sacramentRequest.update({
+    const updated = await prisma.sacramentRequest.update({
       where: { id },
       data: {
         status: 'REJECTED',
@@ -575,5 +593,20 @@ export class SacramentRequestService {
         member: { select: { id: true, firstName: true, lastName: true } }
       }
     });
+
+    try {
+      await notificationService.create({
+        tenantId,
+        memberId: request.memberId,
+        type: 'REJECTION',
+        title: '❌ Pengajuan Sakramen Ditolak',
+        body: `Pengajuan sakramen ${request.type} Anda ditolak. Alasan: ${rejectNotes || '-'}`,
+        data: { requestId: request.id },
+      });
+    } catch (err) {
+      console.error('Failed to create sacrament rejection notification:', err);
+    }
+
+    return updated;
   }
 }

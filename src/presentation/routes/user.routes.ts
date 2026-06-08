@@ -10,5 +10,7 @@ userRouter.use(SubscriptionGate);
 
 userRouter.get('/', userController.listUsers);
 userRouter.post('/', userController.createUser);
+userRouter.delete('/:id', userController.deleteUser);
+userRouter.post('/:id/reset-password', userController.resetPassword);
 
 export default userRouter;

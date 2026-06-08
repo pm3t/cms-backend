@@ -9,52 +9,52 @@ datasource db {
 }
 
 model Tenant {
-  id        String   @id @default(uuid())
-  name      String
-  domain    String?  @unique
-  
+  id     String  @id @default(uuid())
+  name   String
+  domain String? @unique
+
   // Profile
-  address   String?
-  phone     String?
-  email     String?
-  
+  address String?
+  phone   String?
+  email   String?
+
   // Configuration
-  timezone  String   @default("Asia/Jakarta")
-  currency  String   @default("IDR")
-  language  String   @default("id")
+  timezone String @default("Asia/Jakarta")
+  currency String @default("IDR")
+  language String @default("id")
 
   // Branding
-  logoUrl   String?
-  primaryColor String @default("#3b82f6")
+  logoUrl      String?
+  primaryColor String  @default("#3b82f6")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users     User[]
-  roles     Role[]
-  branches  Branch[]
-  members   Member[]
-  families  Family[]
-  announcements Announcement[]
-  commTemplates CommunicationTemplate[]
-  commLogs      CommunicationLog[]
-  financialRecords FinancialRecord[]
-  events        Event[]
-  worshipServices WorshipService[]
+  users             User[]
+  roles             Role[]
+  branches          Branch[]
+  members           Member[]
+  families          Family[]
+  announcements     Announcement[]
+  commTemplates     CommunicationTemplate[]
+  commLogs          CommunicationLog[]
+  financialRecords  FinancialRecord[]
+  events            Event[]
+  worshipServices   WorshipService[]
   attendanceRecords AttendanceRecord[]
-  smallGroups   SmallGroup[]
-  newsletters   Newsletter[]
-  donationProjects DonationProject[]
-  pledges          Pledge[]
-  budgets          Budget[]
-  
-  planId        String?  @map("plan_id")
-  plan          Plan?    @relation(fields: [planId], references: [id])
+  smallGroups       SmallGroup[]
+  newsletters       Newsletter[]
+  donationProjects  DonationProject[]
+  pledges           Pledge[]
+  budgets           Budget[]
+
+  planId String? @map("plan_id")
+  plan   Plan?   @relation(fields: [planId], references: [id])
 
   subscriptions Subscription[]
   invoices      Invoice[]
 
-  ministries    Ministry[]
+  ministries          Ministry[]
   pastoralVisitations PastoralVisitation[]
   counselingRecords   CounselingRecord[]
   prayerRequests      PrayerRequest[]
@@ -66,19 +66,20 @@ model Tenant {
   certificates  Certificate[]
   certTemplates CertificateTemplate[]
 
-  facilities          Facility[]
-  facilityBookings    FacilityBooking[]
-  equipments          Equipment[]
+  facilities           Facility[]
+  facilityBookings     FacilityBooking[]
+  equipments           Equipment[]
   maintenanceSchedules MaintenanceSchedule[]
-  utilityRecords      UtilityRecord[]
+  utilityRecords       UtilityRecord[]
 
-  reportTemplates     ReportTemplate[]
-  sermons             Sermon[]
-  bulletins           Bulletin[]
-  digitalConfig       DigitalConfig?
-  skills              Skill[]
+  reportTemplates        ReportTemplate[]
+  sermons                Sermon[]
+  bulletins              Bulletin[]
+  digitalConfig          DigitalConfig?
+  skills                 Skill[]
   smallGroupJoinRequests SmallGroupJoinRequest[]
-  sacramentRequests   SacramentRequest[]
+  sacramentRequests      SacramentRequest[]
+  notifications          Notification[]
 }
 
 model Branch {
@@ -93,30 +94,30 @@ model Branch {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String
-  password  String
-  name      String
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  roleId    String?
-  role      Role?    @relation(fields: [roleId], references: [id])
-  totpSecret String?
-  is2FAEnabled Boolean @default(false)
-  isSuperAdmin Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  email        String
+  password     String
+  name         String
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roleId       String?
+  role         Role?    @relation(fields: [roleId], references: [id])
+  totpSecret   String?
+  is2FAEnabled Boolean  @default(false)
+  isSuperAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   announcements Announcement[] @relation("AnnouncementAuthor")
 
-  @@unique([email, tenantId]) 
+  @@unique([email, tenantId])
 }
 
 model Role {
-  id          String   @id @default(uuid())
+  id          String           @id @default(uuid())
   name        String
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   permissions RolePermission[]
   users       User[]
 
@@ -124,16 +125,16 @@ model Role {
 }
 
 model Permission {
-  id          String   @id @default(uuid())
-  name        String   @unique
+  id          String           @id @default(uuid())
+  name        String           @unique
   description String?
   roles       RolePermission[]
 }
 
 model RolePermission {
-  id           String @id @default(uuid())
+  id           String     @id @default(uuid())
   roleId       String
-  role         Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permissionId String
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
@@ -170,41 +171,41 @@ enum SacramentType {
 }
 
 model Family {
-  id              String   @id @default(uuid())
-  name            String   // E.g. "Keluarga Panjaitan"
-  
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id   String @id @default(uuid())
+  name String // E.g. "Keluarga Panjaitan"
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // This relation points to a specific Member who acts as the head
   // Wait, circular relation might cause issues on initial insert, we map it nullable
-  headOfFamilyId  String?  @unique
-  headOfFamily    Member?  @relation("FamilyHead", fields: [headOfFamilyId], references: [id], onDelete: SetNull)
+  headOfFamilyId String? @unique
+  headOfFamily   Member? @relation("FamilyHead", fields: [headOfFamilyId], references: [id], onDelete: SetNull)
 
-  members         Member[] @relation("FamilyMembers")
+  members Member[] @relation("FamilyMembers")
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Member {
-  id              String   @id @default(uuid())
-  firstName       String
-  lastName        String?
-  gender          String?  // 'M' or 'F'
-  birthDate       DateTime?
-  birthPlace      String?
-  
-  phone           String?
-  email           String?
-  address         String?
-  photoUrl        String?
+  id         String    @id @default(uuid())
+  firstName  String
+  lastName   String?
+  gender     String? // 'M' or 'F'
+  birthDate  DateTime?
+  birthPlace String?
 
-  status          MembershipStatus @default(ACTIVE)
-  category        MemberCategory   @default(ADULT)
-  
+  phone    String?
+  email    String?
+  address  String?
+  photoUrl String?
+
+  status   MembershipStatus @default(ACTIVE)
+  category MemberCategory   @default(ADULT)
+
   // Privacy configuration (e.g., hidden from public member directory)
-  isPrivate       Boolean  @default(false)
+  isPrivate Boolean @default(false)
 
   // Mobile App fields
   passwordHash    String?
@@ -212,54 +213,55 @@ model Member {
   resetOtp        String?
   resetOtpExpires DateTime?
 
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  familyId        String?
-  family          Family?  @relation("FamilyMembers", fields: [familyId], references: [id], onDelete: SetNull)
+  familyId String?
+  family   Family? @relation("FamilyMembers", fields: [familyId], references: [id], onDelete: SetNull)
 
   // Reverse relation for head of family
-  headedFamily    Family?  @relation("FamilyHead")
+  headedFamily Family? @relation("FamilyHead")
 
-  sacraments      SacramentRecord[]
-  donations       FinancialRecord[]
-  pledges         Pledge[]
+  sacraments         SacramentRecord[]
+  donations          FinancialRecord[]
+  pledges            Pledge[]
   eventRegistrations EventRegistration[]
   attendance         AttendanceRecord[]
-  
+
   smallGroupMemberships SmallGroupMember[]
   smallGroupAttendances SmallGroupAttendance[]
 
-  ministryMemberships MinistryMember[]
-  skills              MemberSkill[]
-  volunteerApplications VolunteerApplication[]
-  servicePositions      ServicePosition[]
-  pastoralVisitations PastoralVisitation[]
-  counselingRecords   CounselingRecord[]
-  prayerRequests      PrayerRequest[]
-  careGroupMemberships CareGroupMember[]
-  crisisRecords       CrisisRecord[]
-  emergencyContacts   EmergencyContact[]
+  ministryMemberships    MinistryMember[]
+  skills                 MemberSkill[]
+  volunteerApplications  VolunteerApplication[]
+  servicePositions       ServicePosition[]
+  pastoralVisitations    PastoralVisitation[]
+  counselingRecords      CounselingRecord[]
+  prayerRequests         PrayerRequest[]
+  careGroupMemberships   CareGroupMember[]
+  crisisRecords          CrisisRecord[]
+  emergencyContacts      EmergencyContact[]
   smallGroupJoinRequests SmallGroupJoinRequest[]
-  certificates        Certificate[]
-  sacramentRequests   SacramentRequest[]
+  certificates           Certificate[]
+  sacramentRequests      SacramentRequest[]
+  notifications          Notification[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model SacramentRecord {
-  id              String   @id @default(uuid())
-  type            SacramentType
-  date            DateTime
-  location        String?
-  pastorName      String?
+  id         String        @id @default(uuid())
+  type       SacramentType
+  date       DateTime
+  location   String?
+  pastorName String?
 
-  memberId        String
-  member          Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================
@@ -279,58 +281,83 @@ enum CommLogStatus {
 }
 
 enum CommunicationChannel {
-  EMAIL
-  SMS
-  WHATSAPP
-  PUSH
+  INBOX
 }
 
 model Announcement {
-  id          String   @id @default(uuid())
+  id          String               @id @default(uuid())
   title       String
-  content     String   @db.Text
+  content     String               @db.Text
   audience    AnnouncementAudience @default(ALL)
-  publishDate DateTime @default(now())
-  
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  authorId    String?
-  author      User?    @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  publishDate DateTime             @default(now())
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  authorId String?
+  author   User?   @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CommunicationTemplate {
-  id          String   @id @default(uuid())
-  name        String
-  subject     String
-  body        String   @db.Text
-  channel     CommunicationChannel @default(EMAIL)
-  
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id      String               @id @default(uuid())
+  name    String
+  subject String
+  body    String               @db.Text
+  channel CommunicationChannel @default(INBOX)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CommunicationLog {
-  id          String   @id @default(uuid())
+  id          String               @id @default(uuid())
   recipient   String
   subject     String
-  body        String   @db.Text
-  channel     CommunicationChannel @default(EMAIL)
-  status      CommLogStatus @default(PENDING)
-  errorDetail String?  @db.Text
-  metadata    Json?    // For tracking extra info like message IDs from providers
-  
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  body        String               @db.Text
+  channel     CommunicationChannel @default(INBOX)
+  status      CommLogStatus        @default(PENDING)
+  errorDetail String?              @db.Text
+  metadata    Json? // For tracking extra info like message IDs from providers
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  type  NotificationType
+  title String
+  body  String           @db.Text
+  data  Json? // payload tambahan: { requestId, requestType, etc. }
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+enum NotificationType {
+  APPROVAL // Sakramen, Facility Booking approved/rejected
+  REJECTION
+  BIRTHDAY // Happy Birthday
+  BULK_GREETING // Happy Sunday, dll
+  SYSTEM // Pengumuman gereja
+  PRAYER // Doa dijawab/didoakan
 }
 
 model Newsletter {
@@ -338,15 +365,15 @@ model Newsletter {
   title       String
   content     String?  @db.Text
   coverUrl    String?
-  pdfUrl      String?  // Link to PDF bulletin if exists
+  pdfUrl      String? // Link to PDF bulletin if exists
   publishDate DateTime @default(now())
   isActive    Boolean  @default(true)
 
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================
@@ -366,91 +393,91 @@ enum PaymentStatus {
 }
 
 model FinancialRecord {
-  id              String   @id @default(uuid())
-  type            TransactionType
-  amount          Float
-  currency        String   @default("IDR")
-  exchangeRate    Float    @default(1.0)
-  date            DateTime @default(now())
-  
-  category        String
-  description     String   @db.Text
-  receiptCode     String   @unique
-  
-  paymentStatus   PaymentStatus @default(COMPLETED)
-  paymentMethod   String?  // CASH, TRANSFER, XENDIT, etc.
-  externalId      String?  @unique // ID from payment gateway
-  proofUrl        String?
+  id           String          @id @default(uuid())
+  type         TransactionType
+  amount       Float
+  currency     String          @default("IDR")
+  exchangeRate Float           @default(1.0)
+  date         DateTime        @default(now())
 
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category    String
+  description String @db.Text
+  receiptCode String @unique
 
-  memberId        String?
-  member      Member?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  paymentStatus PaymentStatus @default(COMPLETED)
+  paymentMethod String? // CASH, TRANSFER, XENDIT, etc.
+  externalId    String?       @unique // ID from payment gateway
+  proofUrl      String?
 
-  projectId       String?
-  project         DonationProject? @relation(fields: [projectId], references: [id])
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  pledgeId        String?
-  pledge          Pledge? @relation(fields: [pledgeId], references: [id])
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  projectId String?
+  project   DonationProject? @relation(fields: [projectId], references: [id])
+
+  pledgeId String?
+  pledge   Pledge? @relation(fields: [pledgeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model DonationProject {
-  id            String   @id @default(uuid())
-  name          String
-  description   String?  @db.Text
-  targetAmount  Float?
-  startDate     DateTime @default(now())
-  endDate       DateTime?
-  isActive      Boolean  @default(true)
+  id           String    @id @default(uuid())
+  name         String
+  description  String?   @db.Text
+  targetAmount Float?
+  startDate    DateTime  @default(now())
+  endDate      DateTime?
+  isActive     Boolean   @default(true)
 
-  tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  records       FinancialRecord[]
-  pledges       Pledge[]
+  records FinancialRecord[]
+  pledges Pledge[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Pledge {
-  id              String   @id @default(uuid())
-  amount          Float
-  startDate       DateTime @default(now())
-  endDate         DateTime?
-  status          String   @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+  id        String    @id @default(uuid())
+  amount    Float
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+  status    String    @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
 
-  memberId        String
-  member          Member   @relation(fields: [memberId], references: [id])
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id])
 
-  projectId       String?
-  project         DonationProject? @relation(fields: [projectId], references: [id])
+  projectId String?
+  project   DonationProject? @relation(fields: [projectId], references: [id])
 
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  records         FinancialRecord[]
+  records FinancialRecord[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Budget {
-  id            String   @id @default(uuid())
-  year          Int
-  month         Int?     // Null means yearly budget
-  category      String
-  amount        Float
-  
-  tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  year     Int
+  month    Int? // Null means yearly budget
+  category String
+  amount   Float
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([tenantId, year, month, category])
 }
@@ -467,44 +494,44 @@ enum RegistrationStatus {
 }
 
 model Event {
-  id               String   @id @default(uuid())
-  tenantId         String
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  title            String
-  description      String?  @db.Text
-  type             String   // e.g. SERVICE, SEMINAR, RETREAT
-  startDate        DateTime
-  endDate          DateTime
-  location         String?
-  
-  capacity         Int?     // Null = unlimited
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?  @db.Text
+  type        String // e.g. SERVICE, SEMINAR, RETREAT
+  startDate   DateTime
+  endDate     DateTime
+  location    String?
+
+  capacity           Int? // Null = unlimited
   isRegistrationOpen Boolean @default(true)
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  
-  registrations    EventRegistration[]
-  attendance       AttendanceRecord[]
-  rosters          ServiceRoster[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  registrations EventRegistration[]
+  attendance    AttendanceRecord[]
+  rosters       ServiceRoster[]
 }
 
 model EventRegistration {
-  id               String   @id @default(uuid())
-  eventId          String
-  event            Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  memberId         String?  
-  member           Member?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  
-  name             String
-  email            String?
-  phone            String?
-  
-  status           RegistrationStatus @default(REGISTERED)
-  checkInTime      DateTime?
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id       String  @id @default(uuid())
+  eventId  String
+  event    Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  name  String
+  email String?
+  phone String?
+
+  status      RegistrationStatus @default(REGISTERED)
+  checkInTime DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([eventId, email])
 }
@@ -514,49 +541,49 @@ model EventRegistration {
 // ==========================================
 
 model WorshipService {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   name        String
-  description String?  @db.Text
-  dayOfWeek   Int?     // 0-6 (Sunday to Saturday)
-  startTime   String?  // HH:MM
+  description String? @db.Text
+  dayOfWeek   Int? // 0-6 (Sunday to Saturday)
+  startTime   String? // HH:MM
   location    String?
-  
-  isActive    Boolean  @default(true)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  attendance  AttendanceRecord[]
-  rosters     ServiceRoster[]
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendance AttendanceRecord[]
+  rosters    ServiceRoster[]
 }
 
 model AttendanceRecord {
-  id               String   @id @default(uuid())
-  tenantId         String
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  memberId         String?
-  member           Member?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  
-  guestName        String?
-  guestPhone       String?
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  guestName  String?
+  guestPhone String?
+
   // Link to either a WorshipService or an Event
   worshipServiceId String?
   worshipService   WorshipService? @relation(fields: [worshipServiceId], references: [id], onDelete: SetNull)
-  
-  eventId          String?
-  event            Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  
-  date             DateTime        // The date of service/event
-  checkInTime      DateTime        @default(now())
-  method           String          @default("MANUAL") // MANUAL, QR
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+
+  eventId String?
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  date        DateTime // The date of service/event
+  checkInTime DateTime @default(now())
+  method      String   @default("MANUAL") // MANUAL, QR
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Prevent double check-in for same service on same day (for same member)
   @@unique([memberId, worshipServiceId, date])
@@ -567,10 +594,10 @@ model AttendanceRecord {
 // ==========================================
 
 enum GroupType {
-  CELL_GROUP      // Sel
-  FELLOWSHIP      // Persekutuan
-  COMMISSION      // Komisi
-  MINISTRY        // Pelayanan
+  CELL_GROUP // Sel
+  FELLOWSHIP // Persekutuan
+  COMMISSION // Komisi
+  MINISTRY // Pelayanan
 }
 
 enum GroupRole {
@@ -581,87 +608,87 @@ enum GroupRole {
 }
 
 model SmallGroup {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   name        String
-  description String?  @db.Text
+  description String?   @db.Text
   type        GroupType @default(CELL_GROUP)
-  
+
   meetingSchedule String? // e.g. "Every Friday 19:00"
-  location    String?
-  
-  members     SmallGroupMember[]
-  meetings    SmallGroupMeeting[]
+  location        String?
+
+  members      SmallGroupMember[]
+  meetings     SmallGroupMeeting[]
   joinRequests SmallGroupJoinRequest[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model SmallGroupMember {
-  id          String   @id @default(uuid())
-  groupId     String
-  group       SmallGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  
-  memberId    String
-  member      Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  
-  role        GroupRole  @default(MEMBER)
-  joinedAt    DateTime   @default(now())
-  
+  id      String     @id @default(uuid())
+  groupId String
+  group   SmallGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  role     GroupRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+
   @@unique([groupId, memberId])
 }
 
 model SmallGroupJoinRequest {
-  id          String     @id @default(uuid())
-  tenantId    String
-  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  groupId     String
-  group       SmallGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  
-  memberId    String
-  member      Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  
-  status      String     @default("PENDING") // PENDING, APPROVED, REJECTED
-  notes       String?    @db.Text
-  
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  groupId String
+  group   SmallGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  status String  @default("PENDING") // PENDING, APPROVED, REJECTED
+  notes  String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([groupId, memberId])
 }
 
 model SmallGroupMeeting {
-  id          String   @id @default(uuid())
-  groupId     String
-  group       SmallGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  
-  date        DateTime
-  title       String?
-  notes       String?  @db.Text
-  
-  attendance  SmallGroupAttendance[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id      String     @id @default(uuid())
+  groupId String
+  group   SmallGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  date  DateTime
+  title String?
+  notes String?  @db.Text
+
+  attendance SmallGroupAttendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model SmallGroupAttendance {
-  id          String   @id @default(uuid())
-  meetingId   String
-  meeting     SmallGroupMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  
-  memberId    String
-  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  
-  status      String   @default("PRESENT") // PRESENT, ABSENT, EXCUSED
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id        String            @id @default(uuid())
+  meetingId String
+  meeting   SmallGroupMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  status String @default("PRESENT") // PRESENT, ABSENT, EXCUSED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Prevent double check-in for same service on same day (for same member)
   @@unique([meetingId, memberId])
 }
@@ -671,22 +698,22 @@ model SmallGroupAttendance {
 // ==========================================
 
 model Plan {
-  id             String   @id @default(uuid())
-  name           String   @unique
-  price_monthly  Decimal  @db.Decimal(10,2)
-  price_yearly   Decimal  @db.Decimal(10,2)
+  id             String  @id @default(uuid())
+  name           String  @unique
+  price_monthly  Decimal @db.Decimal(10, 2)
+  price_yearly   Decimal @db.Decimal(10, 2)
   max_members    Int?
   max_users      Int?
   max_storage_gb Int?
   features       Json
-  is_active      Boolean  @default(true)
-  
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  is_active      Boolean @default(true)
 
-  subscriptions         Subscription[] @relation("ActivePlan")
-  subscriptionsPending  Subscription[] @relation("PendingPlan")
-  tenants               Tenant[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  subscriptions        Subscription[] @relation("ActivePlan")
+  subscriptionsPending Subscription[] @relation("PendingPlan")
+  tenants              Tenant[]
 
   @@map("plans")
 }
@@ -700,29 +727,29 @@ enum SubscriptionStatus {
 }
 
 model Subscription {
-  id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  planId    String
-  plan      Plan     @relation("ActivePlan", fields: [planId], references: [id])
-  
-  status    SubscriptionStatus @default(active)
-  startDate DateTime @default(now()) @map("start_date")
-  endDate   DateTime @map("end_date")
-  trialEndsAt     DateTime? @map("trial_ends_at")
-  gracePeriodEndsAt DateTime? @map("grace_period_ends_at")
-  suspendedAt     DateTime? @map("suspended_at")
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  pendingPlanId   String?  @map("pending_plan_id")
-  pendingPlan     Plan?    @relation("PendingPlan", fields: [pendingPlanId], references: [id])
+  planId String
+  plan   Plan   @relation("ActivePlan", fields: [planId], references: [id])
+
+  status            SubscriptionStatus @default(active)
+  startDate         DateTime           @default(now()) @map("start_date")
+  endDate           DateTime           @map("end_date")
+  trialEndsAt       DateTime?          @map("trial_ends_at")
+  gracePeriodEndsAt DateTime?          @map("grace_period_ends_at")
+  suspendedAt       DateTime?          @map("suspended_at")
+
+  pendingPlanId          String?   @map("pending_plan_id")
+  pendingPlan            Plan?     @relation("PendingPlan", fields: [pendingPlanId], references: [id])
   pendingPlanEffectiveAt DateTime? @map("pending_plan_effective_at")
-  cancelledAt     DateTime? @map("cancelled_at")
-  
+  cancelledAt            DateTime? @map("cancelled_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  invoices  Invoice[]
+  invoices Invoice[]
 
   @@map("subscriptions")
 }
@@ -735,26 +762,26 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id             String   @id @default(uuid())
-  tenantId       String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   subscriptionId String?
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-  
-  amount         Decimal @db.Decimal(10,2)
-  status         InvoiceStatus @default(pending)
-  
-  dueDate        DateTime @map("due_date")
-  paidAt         DateTime? @map("paid_at")
+
+  amount Decimal       @db.Decimal(10, 2)
+  status InvoiceStatus @default(pending)
+
+  dueDate DateTime  @map("due_date")
+  paidAt  DateTime? @map("paid_at")
 
   // Xendit Payment Gateway fields
-  xenditInvoiceId  String?  @map("xendit_invoice_id")
-  invoiceUrl       String?  @map("invoice_url")
-  xenditExpiryAt   DateTime? @map("xendit_expiry_at")
+  xenditInvoiceId String?   @map("xendit_invoice_id")
+  invoiceUrl      String?   @map("invoice_url")
+  xenditExpiryAt  DateTime? @map("xendit_expiry_at")
 
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("invoices")
 }
@@ -764,126 +791,126 @@ model Invoice {
 // ==========================================
 
 model Ministry {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   name        String
-  description String?  @db.Text
-  
-  members     MinistryMember[]
-  rosters     ServiceRoster[]
+  description String? @db.Text
+
+  members      MinistryMember[]
+  rosters      ServiceRoster[]
   recruitments VolunteerRecruitment[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model MinistryMember {
-  id          String   @id @default(uuid())
-  ministryId  String
-  ministry    Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
-  
-  memberId    String
-  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  
-  role        String   @default("MEMBER") // e.g. LEADER, STAFF, VOLUNTEER
-  joinedAt    DateTime @default(now())
-  
+  id         String   @id @default(uuid())
+  ministryId String
+  ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  role     String   @default("MEMBER") // e.g. LEADER, STAFF, VOLUNTEER
+  joinedAt DateTime @default(now())
+
   @@unique([ministryId, memberId])
 }
 
 model Skill {
-  id          String   @id @default(uuid())
-  name        String   // e.g. Guitar, Singing, Teaching, IT
+  id          String  @id @default(uuid())
+  name        String // e.g. Guitar, Singing, Teaching, IT
   description String?
-  
-  tenantId    String?
-  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  members     MemberSkill[]
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  members MemberSkill[]
 
   @@unique([name, tenantId])
 }
 
 model MemberSkill {
-  id          String   @id @default(uuid())
-  memberId    String
-  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  
-  skillId     String
-  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
-  
-  proficiency Int?     // 1-5
-  
+  id       String @id @default(uuid())
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  skillId String
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  proficiency Int? // 1-5
+
   @@unique([memberId, skillId])
 }
 
 model VolunteerRecruitment {
-  id          String   @id @default(uuid())
-  ministryId  String
-  ministry    Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
-  
-  title       String
-  description String   @db.Text
+  id         String   @id @default(uuid())
+  ministryId String
+  ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
+
+  title        String
+  description  String  @db.Text
   requirements String? @db.Text
-  status      String   @default("OPEN") // OPEN, CLOSED
-  
+  status       String  @default("OPEN") // OPEN, CLOSED
+
   applications VolunteerApplication[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model VolunteerApplication {
-  id            String   @id @default(uuid())
+  id            String               @id @default(uuid())
   recruitmentId String
   recruitment   VolunteerRecruitment @relation(fields: [recruitmentId], references: [id], onDelete: Cascade)
-  
-  memberId      String
-  member        Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  
-  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  notes         String?  @db.Text
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  status String  @default("PENDING") // PENDING, APPROVED, REJECTED
+  notes  String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([recruitmentId, memberId])
 }
 
 model ServiceRoster {
-  id          String   @id @default(uuid())
-  ministryId  String
-  ministry    Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
-  
+  id         String   @id @default(uuid())
+  ministryId String
+  ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
+
   worshipServiceId String?
   worshipService   WorshipService? @relation(fields: [worshipServiceId], references: [id], onDelete: SetNull)
-  
-  eventId          String?
-  event            Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  
-  date             DateTime
-  startTime        String?
-  endTime          String?
-  
-  positions        ServicePosition[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  eventId String?
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  date      DateTime
+  startTime String?
+  endTime   String?
+
+  positions ServicePosition[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ServicePosition {
-  id          String   @id @default(uuid())
-  rosterId    String
-  roster      ServiceRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
-  
-  role        String   // e.g. WL, Singer, Guitarist, Usher
-  
-  memberId    String?
-  member      Member?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  
-  notes       String?
+  id       String        @id @default(uuid())
+  rosterId String
+  roster   ServiceRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  role String // e.g. WL, Singer, Guitarist, Usher
+
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  notes String?
 }
 
 model PastoralVisitation {
@@ -894,8 +921,8 @@ model PastoralVisitation {
   member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   visitorName String
   visitDate   DateTime
-  type        String   // HOME, HOSPITAL, OTHER
-  status      String   // PLANNED, COMPLETED, CANCELLED
+  type        String // HOME, HOSPITAL, OTHER
+  status      String // PLANNED, COMPLETED, CANCELLED
   purpose     String
   notes       String?  @db.Text
   createdAt   DateTime @default(now())
@@ -903,21 +930,21 @@ model PastoralVisitation {
 }
 
 model CounselingRecord {
-  id              String   @id @default(uuid())
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  memberId        String
-  member          Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  counselorId     String?  // References User id
-  counselorName   String
-  counselingDate  DateTime
-  title           String
-  issueDescription String  @db.Text
-  actionPlan      String?  @db.Text
-  notes           String   @db.Text // Highly confidential session notes
-  isPrivate       Boolean  @default(true) // Privacy flag
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberId         String
+  member           Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  counselorId      String? // References User id
+  counselorName    String
+  counselingDate   DateTime
+  title            String
+  issueDescription String   @db.Text
+  actionPlan       String?  @db.Text
+  notes            String   @db.Text // Highly confidential session notes
+  isPrivate        Boolean  @default(true) // Privacy flag
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model PrayerRequest {
@@ -952,30 +979,30 @@ model CareGroup {
 }
 
 model CareGroupMember {
-  id        String    @id @default(uuid())
-  groupId   String
-  group     CareGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  memberId  String
-  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  joinedAt  DateTime  @default(now())
+  id       String    @id @default(uuid())
+  groupId  String
+  group    CareGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  memberId String
+  member   Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  joinedAt DateTime  @default(now())
 
   @@unique([groupId, memberId])
 }
 
 model CrisisRecord {
-  id           String    @id @default(uuid())
+  id           String   @id @default(uuid())
   tenantId     String
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   memberId     String
-  member       Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  crisisType   String    // BEREAVEMENT, SICKNESS, FINANCIAL, FAMILY, ACCIDENT, OTHER
-  severity     String    // LOW, MEDIUM, HIGH, CRITICAL
-  description  String    @db.Text
-  status       String    @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED
-  assignedToId String?   // References User id
-  notes        String?   @db.Text
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  member       Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  crisisType   String // BEREAVEMENT, SICKNESS, FINANCIAL, FAMILY, ACCIDENT, OTHER
+  severity     String // LOW, MEDIUM, HIGH, CRITICAL
+  description  String   @db.Text
+  status       String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED
+  assignedToId String? // References User id
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model EmergencyContact {
@@ -998,145 +1025,145 @@ model EmergencyContact {
 // ==========================================
 
 enum DocumentCategory {
-  SERMON        // Khotbah
-  TEACHING      // Materi Pengajaran
-  WORSHIP       // Liturgi / Materi Ibadah
+  SERMON // Khotbah
+  TEACHING // Materi Pengajaran
+  WORSHIP // Liturgi / Materi Ibadah
   ADMINISTRATIVE // Berkas Administrasi
   OTHER
 }
 
 enum CertificateType {
-  BAPTISM       // Sidi / Baptis
-  MARRIAGE      // Nikah
-  CONFIRMATION  // Konfirmasi / Sidi
-  MEMBERSHIP    // Surat Pindah Jemaat
+  BAPTISM // Sidi / Baptis
+  MARRIAGE // Nikah
+  CONFIRMATION // Konfirmasi / Sidi
+  MEMBERSHIP // Surat Pindah Jemaat
   OTHER
 }
 
 model Document {
-  id          String           @id @default(uuid())
-  tenantId    String
-  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   title       String
   description String?          @db.Text
   category    DocumentCategory @default(OTHER)
-  tags        String?          // comma-separated tags
+  tags        String? // comma-separated tags
 
   // Speaker / Author
-  speaker     String?
-  date        DateTime?        // tanggal khotbah/pengajaran
+  speaker String?
+  date    DateTime? // tanggal khotbah/pengajaran
 
   // File metadata
-  fileUrl     String?          // path ke file saat ini
-  fileType    String?          // application/pdf, audio/mp3, etc.
-  fileSize    Int?             // bytes
-  fileName    String?          // original filename
+  fileUrl  String? // path ke file saat ini
+  fileType String? // application/pdf, audio/mp3, etc.
+  fileSize Int? // bytes
+  fileName String? // original filename
 
   // Version control
-  currentVersion Int           @default(1)
+  currentVersion Int @default(1)
 
-  isPublic    Boolean          @default(false) // Bisa diakses jemaat umum
+  isPublic Boolean @default(false) // Bisa diakses jemaat umum
 
-  versions    DocumentVersion[]
+  versions DocumentVersion[]
 
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model DocumentVersion {
-  id          String   @id @default(uuid())
-  documentId  String
-  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
-  version     Int
-  fileUrl     String
-  fileType    String?
-  fileSize    Int?
-  fileName    String?
-  uploadedBy  String?  // userId yang upload
+  version    Int
+  fileUrl    String
+  fileType   String?
+  fileSize   Int?
+  fileName   String?
+  uploadedBy String? // userId yang upload
 
-  notes       String?  @db.Text // changelog notes
+  notes String? @db.Text // changelog notes
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 model Certificate {
-  id                String          @id @default(uuid())
-  tenantId          String
-  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  memberId          String?
-  member            Member?         @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
 
   type              CertificateType
-  certificateNumber String          // auto-generated e.g. CERT-BAPT-2024-0001
+  certificateNumber String // auto-generated e.g. CERT-BAPT-2024-0001
 
   // Recipient info (for non-member or guest certs)
-  recipientName     String
-  recipientAddress  String?
+  recipientName    String
+  recipientAddress String?
 
   // Event details
-  issuedDate        DateTime
-  issuedBy          String          // Pastor/pendeta yang menandatangani
-  location          String?
+  issuedDate DateTime
+  issuedBy   String // Pastor/pendeta yang menandatangani
+  location   String?
 
   // Template & file
-  templateId        String?
-  template          CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  fileUrl           String?          // generated PDF path
+  templateId String?
+  template   CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  fileUrl    String? // generated PDF path
 
-  notes             String?          @db.Text
+  notes String? @db.Text
 
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  sacramentRequest  SacramentRequest? @relation("SacramentRequestCertificate")
+  sacramentRequest SacramentRequest? @relation("SacramentRequestCertificate")
 
   @@unique([tenantId, certificateNumber])
 }
 
 model SacramentRequest {
-  id                String          @id @default(uuid())
-  tenantId          String
-  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  memberId          String
-  member            Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  
-  type              CertificateType // BAPTISM, MARRIAGE, CONFIRMATION, MEMBERSHIP, OTHER
-  status            String          @default("PENDING") // PENDING, APPROVED, REJECTED
-  
-  pastorName        String?
-  date              DateTime?
-  location          String?
-  
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  type   CertificateType // BAPTISM, MARRIAGE, CONFIRMATION, MEMBERSHIP, OTHER
+  status String          @default("PENDING") // PENDING, APPROVED, REJECTED
+
+  pastorName String?
+  date       DateTime?
+  location   String?
+
   // requirements: JSON array of uploaded documents/keys
-  requirements      Json?
-  
-  notes             String?         @db.Text
-  
-  certificateId     String?         @unique
-  certificate       Certificate?    @relation("SacramentRequestCertificate", fields: [certificateId], references: [id], onDelete: SetNull)
-  
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  requirements Json?
+
+  notes String? @db.Text
+
+  certificateId String?      @unique
+  certificate   Certificate? @relation("SacramentRequestCertificate", fields: [certificateId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CertificateTemplate {
-  id          String          @id @default(uuid())
-  tenantId    String
-  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  name        String
-  type        CertificateType
-  content     String          @db.Text // HTML template content
-  isDefault   Boolean         @default(false)
+  name      String
+  type      CertificateType
+  content   String          @db.Text // HTML template content
+  isDefault Boolean         @default(false)
 
   certificates Certificate[]
 
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================
@@ -1144,12 +1171,12 @@ model CertificateTemplate {
 // ==========================================
 
 enum FacilityType {
-  SANCTUARY    // Gedung ibadah utama
+  SANCTUARY // Gedung ibadah utama
   MEETING_ROOM // Ruang rapat
-  HALL         // Aula / serba guna
-  OFFICE       // Kantor
-  KITCHEN      // Dapur
-  STORAGE      // Gudang
+  HALL // Aula / serba guna
+  OFFICE // Kantor
+  KITCHEN // Dapur
+  STORAGE // Gudang
   OTHER
 }
 
@@ -1202,34 +1229,34 @@ enum UtilityType {
 }
 
 model Facility {
-  id          String       @id @default(uuid())
-  tenantId    String
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   name        String
   type        FacilityType @default(OTHER)
   capacity    Int?
-  location    String?      // e.g. "Lantai 2 Gedung A"
+  location    String? // e.g. "Lantai 2 Gedung A"
   description String?      @db.Text
-  amenities   String?      // comma-separated: "AC, Proyektor, Sound System"
+  amenities   String? // comma-separated: "AC, Proyektor, Sound System"
   isActive    Boolean      @default(true)
 
-  bookings    FacilityBooking[]
+  bookings     FacilityBooking[]
   maintenances MaintenanceSchedule[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model FacilityBooking {
-  id          String        @id @default(uuid())
-  tenantId    String
-  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  facilityId  String
-  facility    Facility      @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  facilityId String
+  facility   Facility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
 
-  requestedBy String        // userId or name
+  requestedBy String // userId or name
   purpose     String
   description String?       @db.Text
   startTime   DateTime
@@ -1238,17 +1265,17 @@ model FacilityBooking {
   approvedBy  String?
   notes       String?       @db.Text
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Equipment {
-  id                  String             @id @default(uuid())
-  tenantId            String
-  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   name                String
-  category            String             // e.g. "Audio", "Lighting", "Furniture"
+  category            String // e.g. "Audio", "Lighting", "Furniture"
   serialNumber        String?
   purchaseDate        DateTime?
   purchasePrice       Float?
@@ -1258,70 +1285,70 @@ model Equipment {
   nextMaintenanceDate DateTime?
   isActive            Boolean            @default(true)
 
-  logs                EquipmentLog[]
-  maintenances        MaintenanceSchedule[]
+  logs         EquipmentLog[]
+  maintenances MaintenanceSchedule[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model EquipmentLog {
-  id          String             @id @default(uuid())
+  id          String    @id @default(uuid())
   equipmentId String
-  equipment   Equipment          @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
 
   action      EquipmentLogAction
   performedBy String
   notes       String?            @db.Text
   date        DateTime           @default(now())
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 model MaintenanceSchedule {
-  id           String               @id @default(uuid())
-  tenantId     String
-  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  title        String
-  description  String?              @db.Text
-  type         String               // "ELECTRICAL", "PLUMBING", "HVAC", "CLEANING", "GENERAL"
-  frequency    MaintenanceFrequency @default(ONE_TIME)
-  status       MaintenanceStatus    @default(PENDING)
+  title       String
+  description String?              @db.Text
+  type        String // "ELECTRICAL", "PLUMBING", "HVAC", "CLEANING", "GENERAL"
+  frequency   MaintenanceFrequency @default(ONE_TIME)
+  status      MaintenanceStatus    @default(PENDING)
 
-  facilityId   String?
-  facility     Facility?            @relation(fields: [facilityId], references: [id], onDelete: SetNull)
-  equipmentId  String?
-  equipment    Equipment?           @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  facilityId  String?
+  facility    Facility?  @relation(fields: [facilityId], references: [id], onDelete: SetNull)
+  equipmentId String?
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
   scheduledDate DateTime
   completedDate DateTime?
   assignedTo    String?
   cost          Float?
-  notes         String?             @db.Text
+  notes         String?   @db.Text
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model UtilityRecord {
-  id            String      @id @default(uuid())
-  tenantId      String
-  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   type          UtilityType
-  month         Int         // 1-12
+  month         Int // 1-12
   year          Int
-  amount        Float       // total tagihan (Rp)
-  usage         Float?      // kwh, m3, dll
-  unit          String?     // "kWh", "m³", "Mbps"
+  amount        Float // total tagihan (Rp)
+  usage         Float? // kwh, m3, dll
+  unit          String? // "kWh", "m³", "Mbps"
   vendor        String?
   invoiceNumber String?
   isPaid        Boolean     @default(false)
   notes         String?     @db.Text
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([tenantId, type, month, year])
 }
@@ -1338,18 +1365,18 @@ enum ReportModule {
 }
 
 model ReportTemplate {
-  id          String       @id @default(uuid())
-  tenantId    String
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   name        String
   description String?      @db.Text
   module      ReportModule @default(CUSTOM)
-  config      Json         // Stores selected columns, filters, groupings
+  config      Json // Stores selected columns, filters, groupings
   isPublic    Boolean      @default(false)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================
@@ -1357,9 +1384,9 @@ model ReportTemplate {
 // ==========================================
 
 model Sermon {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   title       String
   preacher    String?
@@ -1369,14 +1396,14 @@ model Sermon {
   description String?  @db.Text
   isPublished Boolean  @default(true)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Bulletin {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   title       String
   date        DateTime
@@ -1384,22 +1411,21 @@ model Bulletin {
   pdfUrl      String?
   isPublished Boolean  @default(true)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model DigitalConfig {
-  id                String   @id @default(uuid())
-  tenantId          String   @unique
-  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  tenantId String @unique
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   liveStreamUrl     String?
-  websiteApiKey     String?  @unique // Used for public API authentication from church website
-  socialWebhookUrl  String?  // Zapier / Make.com webhook URL for auto-posting
-  autoPostSermons   Boolean  @default(false)
-  autoPostBulletins Boolean  @default(false)
+  websiteApiKey     String? @unique // Used for public API authentication from church website
+  socialWebhookUrl  String? // Zapier / Make.com webhook URL for auto-posting
+  autoPostSermons   Boolean @default(false)
+  autoPostBulletins Boolean @default(false)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-

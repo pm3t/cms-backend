@@ -33,5 +33,35 @@ export const userController = {
             }
             res.status(400).json({ error: error.message });
         }
+    },
+
+    async deleteUser(req: AuthRequest, res: Response) {
+        try {
+            const tenantId = req.user!.tenantId;
+            const requesterId = req.user!.userId;
+            const userId = req.params.id as string;
+
+            await userService.deleteUser(tenantId, userId, requesterId);
+            res.json({ success: true, message: 'User berhasil dihapus.' });
+        } catch (error: any) {
+            res.status(400).json({ error: error.message });
+        }
+    },
+
+    async resetPassword(req: AuthRequest, res: Response) {
+        try {
+            const tenantId = req.user!.tenantId;
+            const userId = req.params.id as string;
+            const { password } = req.body;
+
+            if (!password) {
+                return res.status(400).json({ error: 'Password baru wajib diisi.' });
+            }
+
+            await userService.resetPassword(tenantId, userId, password);
+            res.json({ success: true, message: 'Password berhasil direset.' });
+        } catch (error: any) {
+            res.status(400).json({ error: error.message });
+        }
     }
 };

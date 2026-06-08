@@ -33,13 +33,13 @@ export class AuthService {
         });
 
         // Bagian B: Tenant onboarding revision
-        // Default to Pro Trial, but use Free for specific test cases
-        const planName = data.tenantId === 'gkj-bilur' ? 'Free' : 'Pro';
+        // Default to Enterprise Trial, but use Free for specific test cases
+        const planName = data.tenantId === 'gkj-bilur' ? 'Free' : 'Enterprise';
         const plan = await prisma.plan.findFirst({ where: { name: planName } });
         
         if (plan) {
             const now = new Date();
-            const trialDays = planName === 'Pro' ? 14 : 0;
+            const trialDays = planName === 'Enterprise' ? 90 : 0;
             const trialEnd = new Date();
             trialEnd.setDate(now.getDate() + trialDays);
             
@@ -50,10 +50,10 @@ export class AuthService {
                 data: {
                     tenantId: data.tenantId,
                     planId: plan.id,
-                    status: planName === 'Pro' ? 'trialing' : 'active',
+                    status: planName === 'Enterprise' ? 'trialing' : 'active',
                     startDate: now,
                     endDate: oneYearFromNow,
-                    trialEndsAt: planName === 'Pro' ? trialEnd : null
+                    trialEndsAt: planName === 'Enterprise' ? trialEnd : null
                 }
             });
         }
