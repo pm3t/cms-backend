@@ -116,7 +116,7 @@ export class FinanceService {
     }
 
     async getSummary(tenantId: string, filters?: { startDate?: string, endDate?: string }) {
-        const whereClause: any = { tenantId };
+        const whereClause: any = { tenantId, paymentStatus: 'COMPLETED' };
 
         if (filters?.startDate || filters?.endDate) {
             whereClause.date = {};

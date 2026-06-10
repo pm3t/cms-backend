@@ -29,13 +29,35 @@ export const budgetSchema = z.object({
 export class FinanceAdvancedService {
   // --- Projects ---
   async listProjects(tenantId: string) {
-    return prisma.donationProject.findMany({
+    const projects = await prisma.donationProject.findMany({
       where: { tenantId },
       include: {
         _count: { select: { records: true, pledges: true } }
       },
       orderBy: { createdAt: 'desc' }
     });
+
+    const aggregates = await prisma.financialRecord.groupBy({
+      by: ['projectId'],
+      where: {
+        tenantId,
+        projectId: { in: projects.map(p => p.id) },
+        paymentStatus: 'COMPLETED'
+      },
+      _sum: { amount: true }
+    });
+
+    const collectedMap = new Map<string, number>();
+    aggregates.forEach(agg => {
+      if (agg.projectId) {
+        collectedMap.set(agg.projectId, agg._sum.amount || 0);
+      }
+    });
+
+    return projects.map(p => ({
+      ...p,
+      totalCollected: collectedMap.get(p.id) || 0
+    }));
   }
 
   async getProject(tenantId: string, id: string) {

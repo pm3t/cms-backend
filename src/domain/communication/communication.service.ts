@@ -47,11 +47,26 @@ export class CommunicationService {
     }
 
     async listLogs(tenantId: string) {
-        return prisma.communicationLog.findMany({
+        const logs = await prisma.communicationLog.findMany({
             where: { tenantId },
             orderBy: { createdAt: 'desc' },
             take: 100
         });
+
+        const members = await prisma.member.findMany({
+            where: { tenantId },
+            select: { id: true, firstName: true, lastName: true }
+        });
+
+        const memberMap = new Map<string, string>();
+        for (const m of members) {
+            memberMap.set(m.id, `${m.firstName} ${m.lastName || ''}`.trim());
+        }
+
+        return logs.map(log => ({
+            ...log,
+            recipient: memberMap.get(log.recipient) || log.recipient
+        }));
     }
 
     /**
@@ -66,16 +81,41 @@ export class CommunicationService {
         if (!template) throw new Error('Template not found');
 
         // Find recipients
-        const query: any = { tenantId, status: 'ACTIVE' };
-        if (recipientCategory !== 'ALL' && recipientCategory !== 'LEADERS') {
-            query.category = recipientCategory;
+        let recipients;
+        if (recipientCategory === 'LEADERS') {
+            recipients = await prisma.member.findMany({
+                where: {
+                    tenantId,
+                    status: 'ACTIVE',
+                    OR: [
+                        {
+                            smallGroupMemberships: {
+                                some: {
+                                    role: {
+                                        in: ['LEADER', 'ASSISTANT', 'TREASURER']
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            ministryMemberships: {
+                                some: {
+                                    role: {
+                                        in: ['LEADER', 'STAFF']
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            });
+        } else {
+            const query: any = { tenantId, status: 'ACTIVE' };
+            if (recipientCategory !== 'ALL') {
+                query.category = recipientCategory;
+            }
+            recipients = await prisma.member.findMany({ where: query });
         }
-        
-        // If LEADERS, we might need a different logic depending on Role, 
-        // but for now let's assume Members have a way to be identified as leaders 
-        // or just fetch all for this simplified implementation.
-        
-        const recipients = await prisma.member.findMany({ where: query });
         
         console.log(`[CommunicationService] Starting bulk job for ${recipients.length} recipients via ${template.channel}`);
 
@@ -144,10 +184,12 @@ export class CommunicationService {
             });
         }
 
+        const recipientLabel = member ? `${member.firstName} ${member.lastName || ''}`.trim() : data.recipient;
+
         const log = await prisma.communicationLog.create({
             data: {
                 tenantId,
-                recipient: data.recipient,
+                recipient: recipientLabel,
                 subject: data.subject,
                 body: data.body,
                 channel: 'INBOX',

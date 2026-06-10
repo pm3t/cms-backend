@@ -82,6 +82,7 @@ export class MobileService {
     const member = await prisma.member.findUnique({
       where: { id: memberId },
       include: {
+        tenant: { select: { name: true } },
         family: {
           include: {
             members: {

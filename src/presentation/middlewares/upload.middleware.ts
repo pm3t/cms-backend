@@ -4,6 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import { s3Client, isS3Configured, S3_BUCKET_NAME } from '../../lib/s3';
 
+const s3Acl = process.env.S3_ACL || 'public-read';
+
 // Helper to sanitize files and ensure unique names
 const getUniqueFilename = (file: Express.Multer.File) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -39,6 +41,7 @@ const s3PhotoStorage = isS3Configured && s3Client
     ? multerS3({
           s3: s3Client,
           bucket: S3_BUCKET_NAME,
+          acl: s3Acl,
           contentType: multerS3.AUTO_CONTENT_TYPE,
           metadata: (_req, file, cb) => {
               cb(null, { fieldName: file.fieldname });
@@ -75,6 +78,7 @@ const s3ReceiptStorage = isS3Configured && s3Client
     ? multerS3({
           s3: s3Client,
           bucket: S3_BUCKET_NAME,
+          acl: s3Acl,
           contentType: multerS3.AUTO_CONTENT_TYPE,
           metadata: (_req, file, cb) => {
               cb(null, { fieldName: file.fieldname });
@@ -133,6 +137,7 @@ const s3DocumentStorage = isS3Configured && s3Client
     ? multerS3({
           s3: s3Client,
           bucket: S3_BUCKET_NAME,
+          acl: s3Acl,
           contentType: multerS3.AUTO_CONTENT_TYPE,
           metadata: (_req, file, cb) => {
               cb(null, { fieldName: file.fieldname });
