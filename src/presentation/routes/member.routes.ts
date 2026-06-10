@@ -11,22 +11,25 @@ memberRouter.use(authenticateJWT);
 memberRouter.use(SubscriptionGate);
 memberRouter.use(FeatureGate('member_directory'));
 
+// Static routes MUST come before dynamic /:id to avoid Express matching them as the id param
 memberRouter.get('/', memberController.getMembers);
 memberRouter.post('/', memberController.createMember);
 memberRouter.post('/import', memberController.importCsv);
 memberRouter.delete('/bulk', memberController.bulkDeleteMembers);
-memberRouter.get('/:id', memberController.getMemberById);
-memberRouter.patch('/:id', memberController.updateMember);
-memberRouter.delete('/:id', memberController.deleteMember);
-memberRouter.post('/:id/photo', photoUpload.single('photo'), memberController.uploadPhoto);
-memberRouter.post('/:id/reset-password', memberController.resetMobilePassword);
 
 memberRouter.get('/families/all', memberController.getFamilies);
 memberRouter.post('/families/create', memberController.createFamily);
 memberRouter.patch('/families/:id', memberController.updateFamily);
 
-memberRouter.post('/:memberId/sacraments', memberController.addSacrament);
 memberRouter.delete('/sacraments/:id', memberController.deleteSacrament);
+
+// Dynamic /:id routes come LAST
+memberRouter.get('/:id', memberController.getMemberById);
+memberRouter.patch('/:id', memberController.updateMember);
+memberRouter.delete('/:id', memberController.deleteMember);
+memberRouter.post('/:id/photo', photoUpload.single('photo'), memberController.uploadPhoto);
+memberRouter.post('/:id/reset-password', memberController.resetMobilePassword);
+memberRouter.post('/:memberId/sacraments', memberController.addSacrament);
 
 export default memberRouter;
 

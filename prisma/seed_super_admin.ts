@@ -4,8 +4,8 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = 'superadmin@technohub.co.id';
-  const password = 'password123';
+  const email = 'mirmatheorara@gmail.com';
+  const password = '123456';
   const hashedPassword = await bcrypt.hash(password, 10);
 
   console.log('Seeding Super Admin...');

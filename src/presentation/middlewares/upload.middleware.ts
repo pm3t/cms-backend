@@ -40,6 +40,9 @@ const s3PhotoStorage = isS3Configured && s3Client
           s3: s3Client,
           bucket: S3_BUCKET_NAME,
           contentType: multerS3.AUTO_CONTENT_TYPE,
+          metadata: (_req, file, cb) => {
+              cb(null, { fieldName: file.fieldname });
+          },
           key: (_req, file, cb) => {
               cb(null, `member-photos/${getUniqueFilename(file)}`);
           }
@@ -73,6 +76,9 @@ const s3ReceiptStorage = isS3Configured && s3Client
           s3: s3Client,
           bucket: S3_BUCKET_NAME,
           contentType: multerS3.AUTO_CONTENT_TYPE,
+          metadata: (_req, file, cb) => {
+              cb(null, { fieldName: file.fieldname });
+          },
           key: (_req, file, cb) => {
               cb(null, `receipts/${getUniqueFilename(file)}`);
           }
@@ -128,6 +134,9 @@ const s3DocumentStorage = isS3Configured && s3Client
           s3: s3Client,
           bucket: S3_BUCKET_NAME,
           contentType: multerS3.AUTO_CONTENT_TYPE,
+          metadata: (_req, file, cb) => {
+              cb(null, { fieldName: file.fieldname });
+          },
           key: (req: any, file, cb) => {
               const tenantId = req.user?.tenantId || 'unknown';
               cb(null, `documents/${tenantId}/${getUniqueFilename(file)}`);

@@ -66,5 +66,44 @@ export const superAdminController = {
         } catch (error: any) {
             res.status(400).json({ error: error.message });
         }
+    },
+
+    async listPlans(req: Request, res: Response, next: NextFunction) {
+        try {
+            const plans = await superAdminService.listPlans();
+            res.json(plans);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    async changeTenantPlanDirectly(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { planId } = req.body;
+            if (!planId) return res.status(400).json({ error: 'Plan ID required' });
+            
+            const result = await superAdminService.changeTenantPlanDirectly(req.params.id as string, planId as string);
+            res.json(result);
+        } catch (error: any) {
+            res.status(400).json({ error: error.message });
+        }
+    },
+
+    async backupDatabase(req: Request, res: Response, next: NextFunction) {
+        try {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            res.setHeader('Content-Disposition', `attachment; filename="backup-${timestamp}.sql"`);
+            res.setHeader('Content-Type', 'application/sql');
+
+            await superAdminService.backupDatabase(res);
+            res.end();
+        } catch (error: any) {
+            if (!res.headersSent) {
+                res.status(500).json({ error: error.message });
+            } else {
+                console.error('Error during database backup streaming:', error);
+                res.end();
+            }
+        }
     }
 };

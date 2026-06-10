@@ -19,5 +19,12 @@ router.get('/tenants/:id', superAdminController.getTenantDetails);
 router.patch('/tenants/:id/suspend', superAdminController.suspendTenant);
 router.patch('/tenants/:id/activate', superAdminController.activateTenant);
 router.post('/tenants/bulk-delete', superAdminController.bulkDeleteTenants);
+router.patch('/tenants/:id/plan', superAdminController.changeTenantPlanDirectly);
+
+// Plans
+router.get('/plans', superAdminController.listPlans);
+
+// Database Backup
+router.get('/backup-db', superAdminController.backupDatabase);
 
 export default router;
