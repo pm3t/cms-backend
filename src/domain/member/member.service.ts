@@ -10,12 +10,12 @@ export const createFamilySchema = z.object({
 
 export const createMemberSchema = z.object({
     firstName: z.string().min(1),
-    lastName: z.string().optional(),
-    gender: z.string().length(1).optional(),
+    lastName: z.string().optional().nullable(),
+    gender: z.string().length(1).optional().nullable(),
     birthDate: z.string().datetime().optional().nullable(),
-    email: z.union([z.literal(''), z.string().email()]).optional(),
-    phone: z.string().optional(),
-    address: z.string().optional(),
+    email: z.union([z.literal(''), z.string().email()]).optional().nullable(),
+    phone: z.string().optional().nullable(),
+    address: z.string().optional().nullable(),
     status: z.nativeEnum(MembershipStatus).optional(),
     category: z.nativeEnum(MemberCategory).optional(),
     isPrivate: z.boolean().optional(),
