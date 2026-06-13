@@ -3,6 +3,7 @@ import { prisma } from '../../prisma';
 import { CommunicationService } from '../../domain/communication/communication.service';
 import { BillingService } from '../../domain/billing/billing.service';
 import { emailTemplates } from '../../domain/billing/emailTemplates';
+import { sendBirthdayGreetings, sendSundayGreetings } from '../../jobs/notification.job';
 
 const jobRouter = Router();
 const communicationService = new CommunicationService();
@@ -154,6 +155,46 @@ jobRouter.post('/subscription-cleanup', async (req: Request, res: Response) => {
         res.json({ success: true, message: 'Jobs completed successfully' });
     } catch (error: any) {
         console.error('[HTTP Cron Error] Failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Trigger daily birthday greetings manually or via Vercel Cron HTTP request
+jobRouter.post('/birthday-greetings', async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+
+    console.log('[HTTP Cron] Starting birthday greetings job...');
+    try {
+        await sendBirthdayGreetings();
+        res.json({ success: true, message: 'Birthday greetings completed successfully' });
+    } catch (error: any) {
+        console.error('[HTTP Cron Error] Birthday greetings failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Trigger weekly Sunday greetings manually or via Vercel Cron HTTP request
+jobRouter.post('/sunday-greetings', async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+
+    console.log('[HTTP Cron] Starting Sunday greetings job...');
+    try {
+        await sendSundayGreetings();
+        res.json({ success: true, message: 'Sunday greetings completed successfully' });
+    } catch (error: any) {
+        console.error('[HTTP Cron Error] Sunday greetings failed:', error);
         res.status(500).json({ error: error.message });
     }
 });

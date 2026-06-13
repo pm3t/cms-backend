@@ -22,7 +22,7 @@ export function startNotificationCronJobs() {
   });
 }
 
-async function sendBirthdayGreetings() {
+export async function sendBirthdayGreetings() {
   try {
     const today = new Date();
     const targetDay = today.getDate();
@@ -37,10 +37,27 @@ async function sendBirthdayGreetings() {
       select: {
         id: true,
         firstName: true,
+        lastName: true,
         birthDate: true,
         tenantId: true,
       },
     });
+
+    // Fetch birthday templates for all tenants
+    const templates = await prisma.communicationTemplate.findMany({
+      where: {
+        name: {
+          equals: 'Birthday Greeting Template',
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    // Map tenantId -> template
+    const templateMap = new Map<string, any>();
+    for (const t of templates) {
+      templateMap.set(t.tenantId, t);
+    }
 
     let sentCount = 0;
     for (const member of members) {
@@ -48,12 +65,23 @@ async function sendBirthdayGreetings() {
         const bDate = new Date(member.birthDate);
         if (bDate.getDate() === targetDay && (bDate.getMonth() + 1) === targetMonth) {
           try {
+            const tenantTemplate = templateMap.get(member.tenantId);
+            const fullName = `${member.firstName} ${member.lastName || ''}`.trim();
+
+            let title = '🎂 Selamat Hari Ulang Tahun!';
+            let body = `Shalom ${fullName}, segenap keluarga besar gereja mengucapkan Selamat Hari Ulang Tahun. Kiranya damai sejahtera dan berkat Tuhan melimpah senantiasa!`;
+
+            if (tenantTemplate) {
+              title = tenantTemplate.subject.replace(/\{\{name\}\}/gi, fullName);
+              body = tenantTemplate.body.replace(/\{\{name\}\}/gi, fullName);
+            }
+
             await notificationService.create({
               tenantId: member.tenantId,
               memberId: member.id,
               type: 'BIRTHDAY',
-              title: '🎂 Selamat Hari Ulang Tahun!',
-              body: `Shalom ${member.firstName}, segenap keluarga besar gereja mengucapkan Selamat Hari Ulang Tahun. Kiranya damai sejahtera dan berkat Tuhan melimpah senantiasa!`,
+              title,
+              body,
             });
             sentCount++;
           } catch (err) {
@@ -69,7 +97,7 @@ async function sendBirthdayGreetings() {
   }
 }
 
-async function sendSundayGreetings() {
+export async function sendSundayGreetings() {
   try {
     const members = await prisma.member.findMany({
       where: {

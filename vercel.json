@@ -15,5 +15,19 @@
   ],
   "env": {
     "NODE_ENV": "production"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/jobs/subscription-cleanup",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/jobs/birthday-greetings",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/jobs/sunday-greetings",
+      "schedule": "0 6 * * 0"
+    }
+  ]
 }
