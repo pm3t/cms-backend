@@ -10,6 +10,12 @@ export const updateTenantProfileSchema = z.object({
     language: z.string().optional(),
     primaryColor: z.string().optional(),
     logoUrl: z.union([z.literal(''), z.string()]).optional(),
+    ageGroupRules: z.array(z.object({
+        category: z.string(),
+        minAge: z.number().int().nonnegative(),
+        maxAge: z.number().int().nonnegative(),
+        label: z.string()
+    })).optional().nullable(),
 });
 
 export class TenantService {
@@ -26,7 +32,7 @@ export class TenantService {
         const validatedData = updateTenantProfileSchema.parse(data);
         return await prisma.tenant.update({
             where: { id: tenantId },
-            data: validatedData
+            data: validatedData as any
         });
     }
 

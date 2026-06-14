@@ -22,6 +22,7 @@ model Tenant {
   timezone String @default("Asia/Jakarta")
   currency String @default("IDR")
   language String @default("id")
+  ageGroupRules Json?
 
   // Branding
   logoUrl      String?
@@ -196,10 +197,11 @@ model Member {
   birthDate  DateTime?
   birthPlace String?
 
-  phone    String?
-  email    String?
-  address  String?
-  photoUrl String?
+  phone           String?
+  email           String?
+  address         String?
+  photoUrl        String?
+  referenceNumber String?
 
   status   MembershipStatus @default(ACTIVE)
   category MemberCategory   @default(ADULT)
