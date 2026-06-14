@@ -5,8 +5,8 @@ import { NotificationService } from '../domain/notification/notification.service
 const notificationService = new NotificationService();
 
 export function startNotificationCronJobs() {
-  // 1. Daily Birthday Greetings at 08:00 WIB
-  cron.schedule('0 8 * * *', async () => {
+  // 1. Daily Birthday Greetings at 06:00 WIB
+  cron.schedule('0 6 * * *', async () => {
     console.log('[Cron] Checking daily birthdays...');
     await sendBirthdayGreetings();
   }, {
