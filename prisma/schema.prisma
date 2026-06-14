@@ -1039,6 +1039,7 @@ enum CertificateType {
   MARRIAGE // Nikah
   CONFIRMATION // Konfirmasi / Sidi
   MEMBERSHIP // Surat Pindah Jemaat
+  DEDICATION // Penyerahan Anak
   OTHER
 }
 

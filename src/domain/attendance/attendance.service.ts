@@ -63,12 +63,86 @@ export class AttendanceService {
         date.setHours(0, 0, 0, 0); // Normalize to local midnight for uniqueness
 
         return await prisma.$transaction(async (tx) => {
-            // Check if already checked in today for this service/event
-            if (validated.memberId) {
+            let actualMemberId = validated.memberId;
+            let guestName = validated.guestName;
+            let guestPhone = validated.guestPhone;
+
+            // Handle event check-in via registration ID
+            if (validated.eventId && validated.memberId) {
+                // Check if the provided memberId is actually a registration ID
+                const registration = await tx.eventRegistration.findUnique({
+                    where: { id: validated.memberId }
+                });
+
+                if (registration && registration.eventId === validated.eventId) {
+                    if (registration.status === RegistrationStatus.ATTENDED) {
+                        throw new Error('Member already checked in for this session today');
+                    }
+
+                    // Update registration status
+                    await tx.eventRegistration.update({
+                        where: { id: registration.id },
+                        data: {
+                            status: RegistrationStatus.ATTENDED,
+                            checkInTime: new Date()
+                        }
+                    });
+
+                    // Set actual fields for AttendanceRecord
+                    if (registration.memberId) {
+                        actualMemberId = registration.memberId;
+                    } else {
+                        actualMemberId = undefined; // Guest
+                        guestName = registration.name;
+                        guestPhone = registration.phone || undefined;
+                    }
+                } else {
+                    // Try to find a registration for this member for the event
+                    const memberRegistration = await tx.eventRegistration.findFirst({
+                        where: {
+                            eventId: validated.eventId,
+                            memberId: validated.memberId
+                        }
+                    });
+
+                    if (memberRegistration) {
+                        await tx.eventRegistration.update({
+                            where: { id: memberRegistration.id },
+                            data: {
+                                status: RegistrationStatus.ATTENDED,
+                                checkInTime: new Date()
+                            }
+                        });
+                    }
+                }
+            } else if (validated.eventId && !validated.memberId && (validated.guestName || validated.guestPhone)) {
+                // Manual guest check-in for event
+                // Find if there's any matching registration
+                const guestReg = await tx.eventRegistration.findFirst({
+                    where: {
+                        eventId: validated.eventId,
+                        name: validated.guestName,
+                        phone: validated.guestPhone
+                    }
+                });
+
+                if (guestReg) {
+                    await tx.eventRegistration.update({
+                        where: { id: guestReg.id },
+                        data: {
+                            status: RegistrationStatus.ATTENDED,
+                            checkInTime: new Date()
+                        }
+                    });
+                }
+            }
+
+            // Check if already checked in today for this service/event (only for registered members)
+            if (actualMemberId) {
                 const existing = await tx.attendanceRecord.findFirst({
                     where: {
                         tenantId,
-                        memberId: validated.memberId,
+                        memberId: actualMemberId,
                         worshipServiceId: validated.worshipServiceId,
                         eventId: validated.eventId,
                         date: date
@@ -77,28 +151,13 @@ export class AttendanceService {
                 if (existing) throw new Error('Member already checked in for this session today');
             }
 
-            // If it's an event, update the registration status too
-            if (validated.eventId && validated.memberId) {
-                await tx.eventRegistration.updateMany({
-                    where: {
-                        eventId: validated.eventId,
-                        memberId: validated.memberId,
-                        event: { tenantId } // Correct way to filter by tenant
-                    },
-                    data: {
-                        status: RegistrationStatus.ATTENDED,
-                        checkInTime: new Date()
-                    }
-                });
-            }
-
             // Create attendance record
             return tx.attendanceRecord.create({
                 data: {
                     tenantId,
-                    memberId: validated.memberId,
-                    guestName: validated.guestName,
-                    guestPhone: validated.guestPhone,
+                    memberId: actualMemberId || null,
+                    guestName: guestName || null,
+                    guestPhone: guestPhone || null,
                     worshipServiceId: validated.worshipServiceId,
                     eventId: validated.eventId,
                     date: date,

@@ -56,6 +56,7 @@ const CERT_TYPE_CODE: Record<CertificateType, string> = {
   MARRIAGE: 'NIKAH',
   CONFIRMATION: 'SIDI',
   MEMBERSHIP: 'PINDAH',
+  DEDICATION: 'ANAK',
   OTHER: 'CERT',
 };
 

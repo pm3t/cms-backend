@@ -4,6 +4,9 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import nodemailer from 'nodemailer';
 import { FacilityService } from '../facility/facility.service';
+import { CommunicationService } from '../communication/communication.service';
+
+const commService = new CommunicationService();
 
 const jwtSecret = process.env.JWT_SECRET || 'secret';
 
@@ -166,7 +169,7 @@ export class MobileService {
       assignedStatus = 'WAITLISTED';
     }
 
-    return prisma.eventRegistration.create({
+    const registration = await prisma.eventRegistration.create({
       data: {
         eventId,
         memberId,
@@ -176,6 +179,19 @@ export class MobileService {
         status: assignedStatus
       }
     });
+
+    const subject = `Pendaftaran ${assignedStatus === 'WAITLISTED' ? 'Daftar Tunggu' : 'Dikonfirmasi'}: ${event.title}`;
+    const body = `Halo ${member.firstName},\n\nPendaftaran Anda untuk acara "${event.title}" telah ${assignedStatus === 'WAITLISTED' ? 'masuk daftar tunggu' : 'berhasil dikonfirmasi'}.\n\nDetail Acara:\nWaktu: ${event.startDate.toLocaleString('id-ID')}\nLokasi: ${event.location || 'N/A'}\n\nTerima kasih!`;
+
+    await commService.sendMessage(tenantId, {
+      recipient: member.id,
+      subject,
+      body,
+      channel: 'INBOX',
+      qrContent: registration.id
+    });
+
+    return registration;
   }
 
   async checkInEvent(memberId: string, tenantId: string, eventId: string) {
