@@ -82,6 +82,8 @@ model Tenant {
   sacramentRequests      SacramentRequest[]
   notifications          Notification[]
   memberActivityLogs     MemberActivityLog[]
+  dailyDevotions         DailyDevotion[]
+  bibleReadingPlans      BibleReadingPlan[]
 }
 
 model Branch {
@@ -263,6 +265,7 @@ model Member {
   sacramentRequests      SacramentRequest[]
   notifications          Notification[]
   activityLogs           MemberActivityLog[]
+  bibleReadingProgresses MemberReadingProgress[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1447,4 +1450,71 @@ model DigitalConfig {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// Phase 8: Daily Devotion & Bible Reading Plan
+// ==========================================
+
+model DailyDevotion {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title              String
+  scriptureReference String
+  passageText        String?  @db.Text
+  content            String   @db.Text
+  author             String   @default("Tim Pastoral")
+  publishDate        DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([publishDate])
+}
+
+model BibleReadingPlan {
+  id          String                 @id @default(uuid())
+  tenantId    String
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title       String
+  description String?                @db.Text
+  durationDays Int
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  
+  days        BibleReadingPlanDay[]
+  enrollments MemberReadingProgress[]
+
+  @@index([tenantId])
+}
+
+model BibleReadingPlanDay {
+  id             String           @id @default(uuid())
+  planId         String
+  plan           BibleReadingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  dayNumber      Int
+  scripturePassage String
+  
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([planId, dayNumber])
+}
+
+model MemberReadingProgress {
+  id          String           @id @default(uuid())
+  memberId    String
+  member      Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  planId      String
+  plan        BibleReadingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  
+  completedDays Json           @default("[]")
+  startDate   DateTime         @default(now())
+  lastReadAt  DateTime?
+  
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([memberId, planId])
 }

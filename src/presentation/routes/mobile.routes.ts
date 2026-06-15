@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { mobileController } from '../controllers/mobile.controller';
 import { digitalController } from '../controllers/digital.controller';
+import { devotionController } from '../controllers/devotion.controller';
 import { authenticateJWT } from '../middlewares/auth.middleware';
 import { receiptUpload, photoUpload, documentUpload } from '../middlewares/upload.middleware';
 import { SubscriptionGate, FeatureGate } from '../middlewares/featureGate.middleware';
@@ -49,6 +50,16 @@ mobileRouter.get('/prayers/my', mobileController.getMyPrayers);
 mobileRouter.get('/prayers/public', mobileController.getPublicPrayers);
 mobileRouter.post('/prayers', mobileController.createMyPrayer);
 mobileRouter.post('/prayers/:id/pray', mobileController.prayForRequest);
+
+// Mobile Devotions & Bible Reading Plans
+mobileRouter.get('/devotions/today', devotionController.getTodayDevotion);
+mobileRouter.get('/bible-plans', devotionController.getMobileBiblePlans);
+mobileRouter.get('/bible-plans/:id', devotionController.getMobileBiblePlanById);
+mobileRouter.post('/bible-plans/:id/enroll', devotionController.enrollInBiblePlan);
+mobileRouter.get('/bible-plans/my/progress', devotionController.getMemberAllEnrollments);
+mobileRouter.get('/bible-plans/:id/progress', devotionController.getMemberProgress);
+mobileRouter.post('/bible-plans/:id/complete', devotionController.completeDayInBiblePlan);
+mobileRouter.post('/bible-plans/:id/uncomplete', devotionController.uncompleteDayInBiblePlan);
 
 // Mobile Volunteer Routes
 mobileRouter.get('/volunteer', mobileController.getVolunteerRecruitments);

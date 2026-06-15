@@ -20,6 +20,14 @@ export function startNotificationCronJobs() {
   }, {
     timezone: 'Asia/Jakarta'
   });
+
+  // 3. Daily Devotion Greetings at 05:00 WIB
+  cron.schedule('0 5 * * *', async () => {
+    console.log('[Cron] Checking daily devotions...');
+    await sendDailyDevotionNotifications();
+  }, {
+    timezone: 'Asia/Jakarta'
+  });
 }
 
 export async function sendBirthdayGreetings() {
@@ -131,3 +139,72 @@ export async function sendSundayGreetings() {
     console.error('[Cron Error] sendSundayGreetings failed:', error);
   }
 }
+
+export async function sendDailyDevotionNotifications() {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric'
+    });
+    
+    const parts = formatter.formatToParts(new Date());
+    const year = parseInt(parts.find(p => p.type === 'year')!.value);
+    const month = parseInt(parts.find(p => p.type === 'month')!.value) - 1;
+    const day = parseInt(parts.find(p => p.type === 'day')!.value);
+    
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const isoDateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
+    
+    const startOfToday = new Date(`${isoDateStr}T00:00:00.000+07:00`);
+    const endOfToday = new Date(`${isoDateStr}T23:59:59.999+07:00`);
+
+    const devotions = await prisma.dailyDevotion.findMany({
+      where: {
+        publishDate: {
+          gte: startOfToday,
+          lte: endOfToday
+        }
+      }
+    });
+
+    if (devotions.length === 0) {
+      console.log('[Cron] No daily devotions scheduled for today.');
+      return;
+    }
+
+    let totalSent = 0;
+    for (const devotion of devotions) {
+      const members = await prisma.member.findMany({
+        where: {
+          tenantId: devotion.tenantId,
+          status: 'ACTIVE'
+        },
+        select: {
+          id: true
+        }
+      });
+
+      for (const member of members) {
+        try {
+          await notificationService.create({
+            tenantId: devotion.tenantId,
+            memberId: member.id,
+            type: 'SYSTEM',
+            title: `📖 Saat Teduh: ${devotion.title}`,
+            body: `Mari luangkan waktu sejenak untuk bersaat teduh hari ini. Nats: ${devotion.scriptureReference}`,
+          });
+          totalSent++;
+        } catch (err) {
+          console.error(`Failed to send devotion notification to member ${member.id}:`, err);
+        }
+      }
+    }
+
+    console.log(`[Cron] Devotion notifications completed. Sent ${totalSent} notifications.`);
+  } catch (error) {
+    console.error('[Cron Error] sendDailyDevotionNotifications failed:', error);
+  }
+}
+

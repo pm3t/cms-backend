@@ -3,7 +3,7 @@ import { prisma } from '../../prisma';
 import { CommunicationService } from '../../domain/communication/communication.service';
 import { BillingService } from '../../domain/billing/billing.service';
 import { emailTemplates } from '../../domain/billing/emailTemplates';
-import { sendBirthdayGreetings, sendSundayGreetings } from '../../jobs/notification.job';
+import { sendBirthdayGreetings, sendSundayGreetings, sendDailyDevotionNotifications } from '../../jobs/notification.job';
 
 const jobRouter = Router();
 const communicationService = new CommunicationService();
@@ -195,6 +195,26 @@ jobRouter.post('/sunday-greetings', async (req: Request, res: Response) => {
         res.json({ success: true, message: 'Sunday greetings completed successfully' });
     } catch (error: any) {
         console.error('[HTTP Cron Error] Sunday greetings failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Trigger daily devotion notifications manually or via Vercel Cron HTTP request
+jobRouter.post('/devotion-notifications', async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+
+    console.log('[HTTP Cron] Starting devotion notifications job...');
+    try {
+        await sendDailyDevotionNotifications();
+        res.json({ success: true, message: 'Devotion notifications completed successfully' });
+    } catch (error: any) {
+        console.error('[HTTP Cron Error] Devotion notifications failed:', error);
         res.status(500).json({ error: error.message });
     }
 });

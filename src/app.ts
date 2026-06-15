@@ -52,6 +52,7 @@ import facilityRoutes from './presentation/routes/facility.routes';
 import reportingRoutes from './presentation/routes/reporting.routes';
 import mobileRoutes from './presentation/routes/mobile.routes';
 import digitalRoutes from './presentation/routes/digital.routes';
+import devotionRoutes from './presentation/routes/devotion.routes';
 import jobRoutes from './presentation/routes/job.routes';
 import { startSubscriptionCronJobs } from './jobs/subscription.job';
 import { startNotificationCronJobs } from './jobs/notification.job';
@@ -80,6 +81,7 @@ app.use('/api/facility', facilityRoutes);
 app.use('/api/reports', reportingRoutes);
 app.use('/api/mobile', mobileRoutes);
 app.use('/api/digital', digitalRoutes);
+app.use('/api/devotions', devotionRoutes);
 app.use('/api/jobs', jobRoutes);
 
 // Start Cron Jobs
