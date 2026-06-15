@@ -58,6 +58,11 @@ export class MobileService {
     }
 
     const token = jwt.sign({ memberId: member.id, tenantId }, jwtSecret, { expiresIn: '30d' });
+
+    prisma.memberActivityLog.create({
+      data: { tenantId, memberId: member.id, action: 'REGISTER_ACCOUNT', device: 'MOBILE' }
+    }).catch(err => console.error('Failed to log mobile activity:', err));
+
     return { token, member: this.excludeHash(member) };
   }
 
@@ -78,6 +83,11 @@ export class MobileService {
     }
 
     const token = jwt.sign({ memberId: member.id, tenantId }, jwtSecret, { expiresIn: '30d' });
+
+    prisma.memberActivityLog.create({
+      data: { tenantId, memberId: member.id, action: 'LOGIN', device: 'MOBILE' }
+    }).catch(err => console.error('Failed to log mobile activity:', err));
+
     return { token, member: this.excludeHash(member) };
   }
 
@@ -104,6 +114,11 @@ export class MobileService {
       }
     });
     if (!member) throw new Error('Member tidak ditemukan');
+
+    prisma.memberActivityLog.create({
+      data: { tenantId: member.tenantId, memberId: member.id, action: 'OPEN_APP', device: 'MOBILE' }
+    }).catch(err => console.error('Failed to log mobile activity:', err));
+
     return this.excludeHash(member);
   }
 
@@ -191,6 +206,10 @@ export class MobileService {
       qrContent: registration.id
     });
 
+    prisma.memberActivityLog.create({
+      data: { tenantId, memberId, action: 'REGISTER_EVENT', device: 'MOBILE' }
+    }).catch(err => console.error('Failed to log mobile activity:', err));
+
     return registration;
   }
 
@@ -201,20 +220,26 @@ export class MobileService {
     if (!registration) throw new Error('Anda belum terdaftar untuk acara ini. Silakan daftar terlebih dahulu.');
     if (registration.status === 'ATTENDED') throw new Error('Anda sudah melakukan check-in.');
 
-    return prisma.eventRegistration.update({
+    const updated = await prisma.eventRegistration.update({
       where: { id: registration.id },
       data: {
         status: 'ATTENDED',
         checkInTime: new Date()
       }
     });
+
+    prisma.memberActivityLog.create({
+      data: { tenantId, memberId, action: 'CHECK_IN_EVENT', device: 'MOBILE' }
+    }).catch(err => console.error('Failed to log mobile activity:', err));
+
+    return updated;
   }
 
   async recordGiving(memberId: string, tenantId: string, data: any) {
     const amount = Number(data.amount);
     if (!amount || amount <= 0) throw new Error('Jumlah tidak valid');
 
-    return prisma.financialRecord.create({
+    const record = await prisma.financialRecord.create({
       data: {
         tenantId,
         memberId,
@@ -227,6 +252,12 @@ export class MobileService {
         proofUrl: data.proofUrl || null
       }
     });
+
+    prisma.memberActivityLog.create({
+      data: { tenantId, memberId, action: 'RECORD_GIVING', device: 'MOBILE' }
+    }).catch(err => console.error('Failed to log mobile activity:', err));
+
+    return record;
   }
 
   async updateProfile(memberId: string, data: any) {
@@ -399,7 +430,7 @@ export class MobileService {
       throw new Error('Isi pokok doa wajib diisi');
     }
 
-    return prisma.prayerRequest.create({
+    const prayer = await prisma.prayerRequest.create({
       data: {
         tenantId,
         memberId,
@@ -412,6 +443,12 @@ export class MobileService {
         status: 'PENDING'
       }
     });
+
+    prisma.memberActivityLog.create({
+      data: { tenantId, memberId, action: 'SUBMIT_PRAYER', device: 'MOBILE' }
+    }).catch(err => console.error('Failed to log mobile activity:', err));
+
+    return prayer;
   }
 
   async prayForRequest(tenantId: string, id: string) {
@@ -447,9 +484,19 @@ export class MobileService {
     });
     if (existing) throw new Error('Anda sudah mendaftar untuk lowongan pelayanan ini');
 
-    return prisma.volunteerApplication.create({
+    const app = await prisma.volunteerApplication.create({
       data: { memberId, recruitmentId, notes }
     });
+
+    prisma.member.findUnique({ where: { id: memberId }, select: { tenantId: true } }).then(member => {
+      if (member) {
+        prisma.memberActivityLog.create({
+          data: { tenantId: member.tenantId, memberId, action: 'APPLY_VOLUNTEER', device: 'MOBILE' }
+        }).catch(err => console.error('Failed to log mobile activity:', err));
+      }
+    });
+
+    return app;
   }
 
   async getMyRosters(memberId: string) {
@@ -596,7 +643,7 @@ export class MobileService {
       }
     }
 
-    return prisma.counselingRecord.create({
+    const record = await prisma.counselingRecord.create({
       data: {
         tenantId,
         memberId,
@@ -609,6 +656,12 @@ export class MobileService {
         isPrivate: true
       }
     });
+
+    prisma.memberActivityLog.create({
+      data: { tenantId, memberId, action: 'BOOK_COUNSELING', device: 'MOBILE' }
+    }).catch(err => console.error('Failed to log mobile activity:', err));
+
+    return record;
   }
 
   async getFacilities(tenantId: string) {
@@ -680,7 +733,7 @@ export class MobileService {
     const notesTag = `[MemberId: ${memberId}]`;
     const finalNotes = userNotes ? `${userNotes.trim()}\n${notesTag}` : notesTag;
 
-    return prisma.facilityBooking.create({
+    const booking = await prisma.facilityBooking.create({
       data: {
         tenantId,
         facilityId,
@@ -700,6 +753,12 @@ export class MobileService {
         }
       }
     });
+
+    prisma.memberActivityLog.create({
+      data: { tenantId, memberId, action: 'BOOK_FACILITY', device: 'MOBILE' }
+    }).catch(err => console.error('Failed to log mobile activity:', err));
+
+    return booking;
   }
 
   async getSmallGroups(tenantId: string, memberId: string) {
@@ -820,6 +879,10 @@ export class MobileService {
         }
       });
     }
+
+    prisma.memberActivityLog.create({
+      data: { tenantId, memberId, action: 'JOIN_SMALL_GROUP', device: 'MOBILE' }
+    }).catch(err => console.error('Failed to log mobile activity:', err));
 
     return request;
   }

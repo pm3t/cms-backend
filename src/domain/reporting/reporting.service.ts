@@ -235,7 +235,7 @@ export class ReportingService {
 
   async getEngagementMetrics(tenantId: string) {
     const totalMembers = await prisma.member.count({ where: { tenantId, status: 'ACTIVE' } });
-    if (totalMembers === 0) return { participationRate: 0, averageAttendance: 0 };
+    if (totalMembers === 0) return { participationRate: 0, averageAttendance: 0, mobileMetrics: null };
 
     const oneMonthAgo = new Date();
     oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
@@ -256,10 +256,77 @@ export class ReportingService {
     const averageWeeklyAttendance = Math.round(totalAttendanceLastMonth / 4.3);
     const participationRate = Math.min(100, Math.round((averageWeeklyAttendance / totalMembers) * 100));
 
+    // --- Mobile App Analytics (Opsi B) ---
+    const members = await prisma.member.findMany({
+      where: { tenantId, status: 'ACTIVE' },
+      select: {
+        id: true,
+        category: true,
+        passwordHash: true
+      }
+    });
+
+    const totalPerCategory: Record<string, number> = { CHILDREN: 0, YOUTH: 0, ADULT: 0, ELDERLY: 0 };
+    const registeredPerCategory: Record<string, number> = { CHILDREN: 0, YOUTH: 0, ADULT: 0, ELDERLY: 0 };
+    members.forEach(m => {
+      const cat = m.category || 'ADULT';
+      totalPerCategory[cat] = (totalPerCategory[cat] || 0) + 1;
+      if (m.passwordHash) {
+        registeredPerCategory[cat] = (registeredPerCategory[cat] || 0) + 1;
+      }
+    });
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const activeLogs = await prisma.memberActivityLog.findMany({
+      where: {
+        tenantId,
+        createdAt: { gte: thirtyDaysAgo }
+      },
+      select: {
+        memberId: true,
+        member: {
+          select: {
+            category: true
+          }
+        }
+      }
+    });
+
+    const uniqueActiveMembersPerCategory: Record<string, Set<string>> = {
+      CHILDREN: new Set<string>(),
+      YOUTH: new Set<string>(),
+      ADULT: new Set<string>(),
+      ELDERLY: new Set<string>()
+    };
+    activeLogs.forEach(log => {
+      if (log.member) {
+        const cat = log.member.category || 'ADULT';
+        if (uniqueActiveMembersPerCategory[cat]) {
+          uniqueActiveMembersPerCategory[cat].add(log.memberId);
+        }
+      }
+    });
+
+    const activeCountPerCategory = {
+      CHILDREN: uniqueActiveMembersPerCategory.CHILDREN.size,
+      YOUTH: uniqueActiveMembersPerCategory.YOUTH.size,
+      ADULT: uniqueActiveMembersPerCategory.ADULT.size,
+      ELDERLY: uniqueActiveMembersPerCategory.ELDERLY.size,
+    };
+
     return {
       participationRate,
       averageWeeklyAttendance,
-      totalActiveMembers: totalMembers
+      totalActiveMembers: totalMembers,
+      mobileMetrics: {
+        totalPerCategory,
+        registeredPerCategory,
+        activeCountPerCategory,
+        totalRegisteredMobile: Object.values(registeredPerCategory).reduce((a, b) => a + b, 0),
+        totalActiveMobile30d: Object.values(activeCountPerCategory).reduce((a, b) => a + b, 0)
+      }
     };
   }
 

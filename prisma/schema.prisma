@@ -81,6 +81,7 @@ model Tenant {
   smallGroupJoinRequests SmallGroupJoinRequest[]
   sacramentRequests      SacramentRequest[]
   notifications          Notification[]
+  memberActivityLogs     MemberActivityLog[]
 }
 
 model Branch {
@@ -150,6 +151,20 @@ model AuditLog {
   resource  String
   details   Json?
   createdAt DateTime @default(now())
+}
+
+model MemberActivityLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  action    String   // e.g. LOGIN, OPEN_APP, REGISTER_EVENT, SUBMIT_PRAYER
+  device    String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([memberId])
 }
 
 enum MembershipStatus {
@@ -247,6 +262,7 @@ model Member {
   certificates           Certificate[]
   sacramentRequests      SacramentRequest[]
   notifications          Notification[]
+  activityLogs           MemberActivityLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
