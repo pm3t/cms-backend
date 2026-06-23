@@ -30,6 +30,7 @@ export const authController = {
             const result = await authService.login(email, password, tenantId);
             res.json(result);
         } catch (error: any) {
+            console.error('Login Error:', error);
             res.status(401).json({ error: error.message });
         }
     },

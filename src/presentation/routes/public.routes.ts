@@ -9,6 +9,7 @@ const publicRouter = Router();
 
 // Public endpoints for Donation Portal
 publicRouter.get('/church/:id', publicController.getChurchInfo);
+publicRouter.get('/church/:id/website', publicController.getChurchWebsiteData);
 publicRouter.post('/church/:tenantId/give', publicController.createDonation);
 
 // --- Digital Engagement (Requires API Key) ---

@@ -12,6 +12,10 @@ model Tenant {
   id     String  @id @default(uuid())
   name   String
   domain String? @unique
+  
+  websiteActive Boolean @default(false)
+  websitePath   String? @unique
+  websiteTheme  String  @default("classic")
 
   // Profile
   address String?
