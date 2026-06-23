@@ -76,10 +76,19 @@ export const publicController = {
                 orderBy: { date: 'desc' }
             });
 
-            const bulletins = await prisma.bulletin.findMany({
-                where: { tenantId, isPublished: true },
-                orderBy: { date: 'desc' }
+            const newsletters = await prisma.newsletter.findMany({
+                where: { tenantId, isActive: true },
+                orderBy: { publishDate: 'desc' }
             });
+
+            const bulletins = newsletters.map(n => ({
+                id: n.id,
+                title: n.title,
+                content: n.content,
+                pdfUrl: n.pdfUrl,
+                coverUrl: n.coverUrl,
+                date: n.publishDate
+            }));
 
             const devotions = await prisma.dailyDevotion.findMany({
                 where: { tenantId, publishDate: { lte: new Date() } },
