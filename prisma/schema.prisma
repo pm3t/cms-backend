@@ -88,6 +88,8 @@ model Tenant {
   memberActivityLogs     MemberActivityLog[]
   dailyDevotions         DailyDevotion[]
   bibleReadingPlans      BibleReadingPlan[]
+  bibleQuestions         BibleQuestion[]
+  memberGameScores       MemberGameScore[]
 }
 
 model Branch {
@@ -270,6 +272,8 @@ model Member {
   notifications          Notification[]
   activityLogs           MemberActivityLog[]
   bibleReadingProgresses MemberReadingProgress[]
+  bibleGameAttempts      BibleGameAttempt[]
+  memberGameScore        MemberGameScore?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1522,3 +1526,61 @@ model MemberReadingProgress {
 
   @@unique([memberId, planId])
 }
+
+// ==========================================
+// Phase 9: Bible Game Models
+// ==========================================
+
+model BibleQuestion {
+  id               String            @id @default(uuid())
+  tenantId         String
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type             String            // "QUIZ", "SCRAMBLE", "WORD_SEARCH", "GUESS"
+  question         String            @db.Text
+  options          Json?             // Pilihan ganda ["A", "B", "C"] atau daftar kata untuk Word Search
+  correctAnswer    String            // Jawaban benar
+  passageReference String?           // Referensi ayat (misal: Yohanes 3:16)
+  hint             String?           @db.Text
+  points           Int               @default(10)
+  activeDate       DateTime?         // Ditampilkan pada tanggal tertentu (Kuis Harian)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  attempts         BibleGameAttempt[]
+
+  @@index([tenantId])
+  @@index([activeDate])
+}
+
+model BibleGameAttempt {
+  id           String        @id @default(uuid())
+  tenantId     String
+  memberId     String
+  member       Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  questionId   String
+  question     BibleQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  isCorrect    Boolean
+  pointsEarned Int
+  createdAt    DateTime      @default(now())
+
+  @@unique([memberId, questionId])
+  @@index([tenantId])
+  @@index([memberId])
+}
+
+model MemberGameScore {
+  id            String    @id @default(uuid())
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberId      String    @unique
+  member        Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  totalPoints   Int       @default(0)
+  currentStreak Int       @default(0)
+  maxStreak     Int       @default(0)
+  lastPlayedAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([tenantId])
+}
+

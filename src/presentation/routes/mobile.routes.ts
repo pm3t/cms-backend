@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { mobileController } from '../controllers/mobile.controller';
 import { digitalController } from '../controllers/digital.controller';
 import { devotionController } from '../controllers/devotion.controller';
+import { gameController } from '../controllers/game.controller';
 import { authenticateJWT } from '../middlewares/auth.middleware';
 import { receiptUpload, photoUpload, documentUpload } from '../middlewares/upload.middleware';
 import { SubscriptionGate, FeatureGate } from '../middlewares/featureGate.middleware';
@@ -85,6 +86,12 @@ mobileRouter.post('/sacrament-requests/upload', documentUpload.single('file'), m
 mobileRouter.get('/notifications', mobileController.getNotifications);
 mobileRouter.patch('/notifications/read-all', mobileController.markAllAsRead);
 mobileRouter.patch('/notifications/:id/read', mobileController.markAsRead);
+
+// Mobile Biblical Game Routes
+mobileRouter.get('/game/today', gameController.getTodayQuestions);
+mobileRouter.post('/game/submit', gameController.submitAnswer);
+mobileRouter.get('/game/profile', gameController.getGameProfile);
+mobileRouter.get('/game/leaderboard', gameController.getLeaderboard);
 
 export default mobileRouter;
 
