@@ -217,10 +217,18 @@ export class SuperAdminService {
             ORDER BY table_name;
         `);
 
+        // Tulis semua TRUNCATE di awal file untuk menghindari cascading delete setelah data dimasukkan
+        writeStream.write("-- Clean existing tables\n");
+        for (const tableObj of tables) {
+            const tableName = tableObj.table_name;
+            writeStream.write(`TRUNCATE TABLE public."${tableName}" CASCADE;\n`);
+        }
+        writeStream.write("\n");
+
+        // Mulai proses insert data tabel demi tabel
         for (const tableObj of tables) {
             const tableName = tableObj.table_name;
             writeStream.write(`-- Data for Name: ${tableName};\n`);
-            writeStream.write(`TRUNCATE TABLE public."${tableName}" RESTART IDENTITY CASCADE;\n\n`);
 
             const columns: Array<{ column_name: string; data_type: string }> = await prisma.$queryRawUnsafe(`
                 SELECT column_name, data_type 
@@ -243,6 +251,10 @@ export class SuperAdminService {
                         const val = row[col.column_name];
                         if (val === null || val === undefined) {
                             return 'NULL';
+                        }
+                        // Penanganan tipe data numerik/decimal agar tidak terdeteksi sebagai 'object' JSONB
+                        if (col.data_type === 'numeric' || col.data_type === 'integer' || col.data_type === 'real' || col.data_type === 'double precision') {
+                            return val.toString();
                         }
                         if (typeof val === 'boolean') {
                             return val ? 'TRUE' : 'FALSE';

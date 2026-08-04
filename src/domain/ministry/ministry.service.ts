@@ -67,6 +67,21 @@ export class MinistryService {
         });
     }
 
+    static async removeMemberFromMinistry(tenantId: string, ministryId: string, memberId: string) {
+        // Verify ministry belongs to tenant
+        const ministry = await prisma.ministry.findFirst({ where: { id: ministryId, tenantId } });
+        if (!ministry) throw new Error('Ministry not found');
+
+        return prisma.ministryMember.delete({
+            where: {
+                ministryId_memberId: {
+                    ministryId,
+                    memberId
+                }
+            }
+        });
+    }
+
     // --- Volunteer Recruitment ---
     static async listRecruitments(tenantId: string) {
         return prisma.volunteerRecruitment.findMany({

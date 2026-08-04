@@ -55,6 +55,32 @@ export class MinistryController {
         }
     }
 
+    static async getMinistryDetails(req: Request, res: Response) {
+        try {
+            const tenantId = (req as any).user.tenantId;
+            const { id } = req.params;
+            const ministry = await MinistryService.getMinistryDetails(tenantId, id as string);
+            if (!ministry) {
+                res.status(404).json({ error: 'Ministry group not found' });
+                return;
+            }
+            res.json(ministry);
+        } catch (err: any) {
+            res.status(500).json({ error: err.message });
+        }
+    }
+
+    static async removeMember(req: Request, res: Response) {
+        try {
+            const tenantId = (req as any).user.tenantId;
+            const { id, memberId } = req.params;
+            await MinistryService.removeMemberFromMinistry(tenantId, id as string, memberId as string);
+            res.status(204).send();
+        } catch (err: any) {
+            res.status(500).json({ error: err.message });
+        }
+    }
+
     static async getRecruitments(req: Request, res: Response) {
         try {
             const tenantId = (req as any).user.tenantId;

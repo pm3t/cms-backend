@@ -16,6 +16,8 @@ router.post('/', MinistryController.createMinistry);
 router.put('/:id', MinistryController.updateMinistry);
 router.delete('/:id', MinistryController.deleteMinistry);
 router.post('/members', MinistryController.addMember);
+router.get('/:id', MinistryController.getMinistryDetails);
+router.delete('/:id/members/:memberId', MinistryController.removeMember);
 
 // Volunteer Recruitment
 router.get('/volunteer', MinistryController.getRecruitments);
