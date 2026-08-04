@@ -16,8 +16,6 @@ router.post('/', MinistryController.createMinistry);
 router.put('/:id', MinistryController.updateMinistry);
 router.delete('/:id', MinistryController.deleteMinistry);
 router.post('/members', MinistryController.addMember);
-router.get('/:id', MinistryController.getMinistryDetails);
-router.delete('/:id/members/:memberId', MinistryController.removeMember);
 
 // Volunteer Recruitment
 router.get('/volunteer', MinistryController.getRecruitments);
@@ -41,5 +39,9 @@ router.delete('/skills/:id', MinistryController.deleteSkill);
 router.post('/skills/members/:memberId', MinistryController.assignSkill);
 router.delete('/skills/members/:memberId/:skillId', MinistryController.removeSkill);
 router.get('/talents/:skillId', MinistryController.searchTalents);
+
+// Wildcard routes (must be placed at the end to avoid matching static endpoints)
+router.get('/:id', MinistryController.getMinistryDetails);
+router.delete('/:id/members/:memberId', MinistryController.removeMember);
 
 export default router;
