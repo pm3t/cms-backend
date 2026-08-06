@@ -94,10 +94,21 @@ app.get('/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+import multer from 'multer';
+
 // Generic Error Handler mapped to clean architecture
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-    console.error(err.stack);
-    res.status(err.status || 500).json({
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ error: 'Ukuran file melebihi batas maksimal (50 MB).' });
+        }
+        return res.status(400).json({ error: `Gagal upload file: ${err.message}` });
+    }
+    if (err.message && (err.message.includes('tidak didukung') || err.message.includes('not allowed'))) {
+        return res.status(400).json({ error: err.message });
+    }
+    console.error(err.stack || err);
+    res.status(err.status || err.statusCode || 500).json({
         error: err.message || 'Internal Server Error',
     });
 });

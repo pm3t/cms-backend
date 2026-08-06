@@ -104,19 +104,49 @@ const DOCUMENT_ALLOWED_MIME = [
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain',
+    'text/csv',
     // Audio
     'audio/mpeg',
+    'audio/mp3',
     'audio/mp4',
     'audio/ogg',
     'audio/wav',
+    'audio/x-wav',
+    'audio/aac',
+    'audio/m4a',
+    'audio/x-m4a',
+    'audio/webm',
+    'audio/flac',
+    'audio/x-flac',
     // Video
     'video/mp4',
     'video/webm',
     'video/ogg',
+    'video/x-matroska',
+    'video/mkv',
+    'application/x-matroska',
+    'video/quicktime',
+    'video/avi',
+    'video/x-msvideo',
+    'video/msvideo',
+    'video/x-ms-wmv',
+    'video/3gpp',
+    'video/x-flv',
     // Images
     'image/jpeg',
     'image/png',
     'image/webp',
+    'image/gif',
+];
+
+const DOCUMENT_ALLOWED_EXTENSIONS = [
+    '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt', '.csv',
+    '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac',
+    '.mp4', '.mkv', '.webm', '.avi', '.mov', '.wmv', '.3gp', '.flv',
+    '.jpg', '.jpeg', '.png', '.webp', '.gif'
 ];
 
 const localDocumentStorage = multer.diskStorage({
@@ -150,10 +180,11 @@ const s3DocumentStorage = isS3Configured && s3Client
     : null;
 
 const documentFileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    if (DOCUMENT_ALLOWED_MIME.includes(file.mimetype)) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (DOCUMENT_ALLOWED_MIME.includes(file.mimetype) || DOCUMENT_ALLOWED_EXTENSIONS.includes(ext)) {
         cb(null, true);
     } else {
-        cb(new Error('File type not allowed. Supported: PDF, DOCX, PPTX, MP3, MP4, JPG, PNG.'));
+        cb(new Error('Format file tidak didukung. Format yang didukung: PDF, Office, MP3, MP4, MKV, MOV, AVI, JPG, PNG.'));
     }
 };
 
