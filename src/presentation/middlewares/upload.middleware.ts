@@ -13,11 +13,13 @@ const getUniqueFilename = (file: Express.Multer.File) => {
 };
 
 const imageFileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (allowed.includes(file.mimetype)) {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif'];
+    if (allowed.includes(file.mimetype) || allowedExts.includes(ext) || file.mimetype === 'application/octet-stream') {
         cb(null, true);
     } else {
-        cb(new Error('Only image files (JPG, PNG, WEBP, GIF) are allowed.'));
+        cb(new Error('Only image files (JPG, PNG, WEBP, GIF, HEIC) are allowed.'));
     }
 };
 
