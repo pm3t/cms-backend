@@ -202,30 +202,107 @@ export class AttendanceService {
         };
     }
 
-    // Basic Absentee Follow-up Alert
-    // Identify active members who haven't attended any service in the last 21 days
-    async getAbsentees(tenantId: string) {
-        const threeWeeksAgo = new Date();
-        threeWeeksAgo.setDate(threeWeeksAgo.getDate() - 21);
+    // Enhanced Absentee Follow-up Report
+    // Identify active members with attendance status, days absent, small group, and pastoral visitations
+    async getAbsenteesReport(tenantId: string, options: { days?: number; groupId?: string; status?: string; search?: string } = {}) {
+        const days = options.days ? Number(options.days) : 21;
 
-        const activeMembers = await prisma.member.findMany({
+        // Fetch active members with attendance, small group, and visitation history
+        const members = await prisma.member.findMany({
             where: {
                 tenantId,
                 status: 'ACTIVE',
-                attendance: {
-                    none: {
-                        date: { gte: threeWeeksAgo }
+                ...(options.groupId ? {
+                    smallGroupMemberships: {
+                        some: { groupId: options.groupId }
                     }
-                }
+                } : {}),
+                ...(options.search ? {
+                    OR: [
+                        { firstName: { contains: options.search, mode: 'insensitive' } },
+                        { lastName: { contains: options.search, mode: 'insensitive' } },
+                        { phone: { contains: options.search, mode: 'insensitive' } },
+                    ]
+                } : {})
             },
-            select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phone: true,
+            include: {
+                attendance: {
+                    orderBy: { date: 'desc' },
+                    take: 1,
+                    select: { date: true, worshipService: { select: { name: true } } }
+                },
+                smallGroupAttendances: {
+                    where: { status: 'PRESENT' },
+                    orderBy: { meeting: { date: 'desc' } },
+                    take: 1,
+                    include: { meeting: { select: { date: true, title: true } } }
+                },
+                smallGroupMemberships: {
+                    include: { group: { select: { id: true, name: true } } }
+                },
+                pastoralVisitations: {
+                    orderBy: { visitDate: 'desc' },
+                    take: 1,
+                }
             }
         });
 
-        return activeMembers;
+        const now = new Date();
+
+        const report = members.map(m => {
+            const lastServiceDate = m.attendance[0]?.date ? new Date(m.attendance[0].date) : null;
+            const lastGroupDate = m.smallGroupAttendances[0]?.meeting?.date ? new Date(m.smallGroupAttendances[0].meeting.date) : null;
+            
+            let lastAttendedDate: Date | null = null;
+            if (lastServiceDate && lastGroupDate) {
+                lastAttendedDate = lastServiceDate > lastGroupDate ? lastServiceDate : lastGroupDate;
+            } else {
+                lastAttendedDate = lastServiceDate || lastGroupDate;
+            }
+
+            const daysAbsent = lastAttendedDate 
+                ? Math.floor((now.getTime() - lastAttendedDate.getTime()) / (1000 * 60 * 60 * 24))
+                : 999;
+
+            const groups = m.smallGroupMemberships.map(sg => sg.group.name);
+            const latestVisitation = m.pastoralVisitations[0] || null;
+
+            return {
+                id: m.id,
+                firstName: m.firstName,
+                lastName: m.lastName,
+                phone: m.phone,
+                email: m.email,
+                address: m.address,
+                gender: m.gender,
+                groups,
+                lastAttendedDate: lastAttendedDate ? lastAttendedDate.toISOString() : null,
+                lastServiceName: m.attendance[0]?.worshipService?.name || null,
+                daysAbsent,
+                latestVisitation: latestVisitation ? {
+                    id: latestVisitation.id,
+                    visitDate: latestVisitation.visitDate,
+                    visitorName: latestVisitation.visitorName,
+                    type: latestVisitation.type,
+                    status: latestVisitation.status,
+                    purpose: latestVisitation.purpose,
+                    notes: latestVisitation.notes
+                } : null
+            };
+        }).filter(item => {
+            if (item.daysAbsent < days) return false;
+            if (options.status && options.status !== 'ALL') {
+                const currentStatus = item.latestVisitation?.status || 'UNCONTACTED';
+                if (currentStatus !== options.status) return false;
+            }
+            return true;
+        }).sort((a, b) => b.daysAbsent - a.daysAbsent);
+
+        return report;
+    }
+
+    async getAbsentees(tenantId: string) {
+        return this.getAbsenteesReport(tenantId, { days: 21 });
     }
 }
+

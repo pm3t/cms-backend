@@ -69,7 +69,13 @@ export const attendanceController = {
 
     async getAbsentees(req: any, res: Response) {
         try {
-            const absentees = await attendanceService.getAbsentees(req.user.tenantId);
+            const { days, groupId, status, search } = req.query;
+            const absentees = await attendanceService.getAbsenteesReport(req.user.tenantId, {
+                days: days ? Number(days) : undefined,
+                groupId: groupId ? String(groupId) : undefined,
+                status: status ? String(status) : undefined,
+                search: search ? String(search) : undefined,
+            });
             res.json(absentees);
         } catch (error: any) {
             res.status(400).json({ error: error.message });
