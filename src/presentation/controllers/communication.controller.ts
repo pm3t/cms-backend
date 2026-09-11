@@ -71,5 +71,14 @@ export const communicationController = {
         } catch (error: any) {
             res.status(400).json({ error: error.message });
         }
+    },
+
+    async sendBulkAbsentees(req: any, res: Response) {
+        try {
+            const result = await commService.sendBulkAbsenteeMessages(req.user.tenantId, req.body);
+            res.status(200).json(result);
+        } catch (error: any) {
+            res.status(400).json({ error: error.message });
+        }
     }
 };

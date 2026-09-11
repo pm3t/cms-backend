@@ -19,5 +19,6 @@ communicationRouter.delete('/templates/:id', communicationController.deleteTempl
 communicationRouter.get('/logs', communicationController.listLogs);
 communicationRouter.post('/send', communicationController.triggerEmail);
 communicationRouter.post('/bulk', communicationController.sendBulk);
+communicationRouter.post('/send-bulk-absentees', communicationController.sendBulkAbsentees);
 
 export default communicationRouter;
