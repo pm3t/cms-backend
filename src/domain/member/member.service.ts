@@ -57,6 +57,12 @@ export const createMemberSchema = z.object({
     email: z.union([z.literal(''), z.string().email()]).optional().nullable(),
     phone: z.string().optional().nullable(),
     address: z.string().optional().nullable(),
+    district: z.string().optional().nullable(),
+    city: z.string().optional().nullable(),
+    postalCode: z.string().optional().nullable(),
+    rayon: z.string().optional().nullable(),
+    latitude: z.number().optional().nullable(),
+    longitude: z.number().optional().nullable(),
     referenceNumber: z.string().optional().nullable(),
     status: z.nativeEnum(MembershipStatus).optional(),
     category: z.nativeEnum(MemberCategory).optional(),
@@ -214,6 +220,112 @@ export class MemberService {
         return prisma.member.update({
             where: { id: memberId },
             data: { passwordHash }
+        });
+    }
+
+    async getCongregationMapData(tenantId: string, queryFilters: any = {}) {
+        const { search, category, status, rayon, groupId, hasCoordinates } = queryFilters;
+
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { id: true, name: true, address: true, latitude: true, longitude: true }
+        });
+
+        const whereClause: any = { tenantId };
+
+        if (search) {
+            whereClause.OR = [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { address: { contains: search, mode: 'insensitive' } },
+                { rayon: { contains: search, mode: 'insensitive' } },
+            ];
+        }
+
+        if (category) {
+            whereClause.category = category;
+        }
+
+        if (status) {
+            whereClause.status = status;
+        }
+
+        if (rayon) {
+            whereClause.rayon = rayon;
+        }
+
+        if (groupId) {
+            whereClause.smallGroupMemberships = {
+                some: { groupId }
+            };
+        }
+
+        if (hasCoordinates === 'true') {
+            whereClause.latitude = { not: null };
+            whereClause.longitude = { not: null };
+        } else if (hasCoordinates === 'false') {
+            whereClause.OR = [
+                { latitude: null },
+                { longitude: null }
+            ];
+        }
+
+        const members = await prisma.member.findMany({
+            where: whereClause,
+            include: {
+                family: { select: { id: true, name: true } },
+                smallGroupMemberships: {
+                    include: { group: { select: { id: true, name: true } } }
+                }
+            },
+            orderBy: { firstName: 'asc' }
+        });
+
+        const totalMembers = members.length;
+        const mappedMembers = members.filter(m => m.latitude !== null && m.longitude !== null);
+        const mappedMembersCount = mappedMembers.length;
+        const unmappedMembersCount = totalMembers - mappedMembersCount;
+
+        const byRayon: Record<string, number> = {};
+        const byCategory: Record<string, number> = {};
+
+        members.forEach(m => {
+            const r = m.rayon || 'Belum Ditentukan';
+            byRayon[r] = (byRayon[r] || 0) + 1;
+
+            const c = m.category || 'ADULT';
+            byCategory[c] = (byCategory[c] || 0) + 1;
+        });
+
+        return {
+            tenantHQ: tenant,
+            metrics: {
+                totalMembers,
+                mappedMembersCount,
+                unmappedMembersCount,
+                mappedPercentage: totalMembers > 0 ? Math.round((mappedMembersCount / totalMembers) * 100) : 0,
+                byRayon,
+                byCategory
+            },
+            members
+        };
+    }
+
+    async updateMemberLocation(tenantId: string, memberId: string, data: any) {
+        await this.getMember(tenantId, memberId);
+        const { latitude, longitude, address, district, city, postalCode, rayon } = data;
+
+        return prisma.member.update({
+            where: { id: memberId },
+            data: {
+                latitude: latitude !== undefined ? latitude : undefined,
+                longitude: longitude !== undefined ? longitude : undefined,
+                address: address !== undefined ? address : undefined,
+                district: district !== undefined ? district : undefined,
+                city: city !== undefined ? city : undefined,
+                postalCode: postalCode !== undefined ? postalCode : undefined,
+                rayon: rayon !== undefined ? rayon : undefined,
+            }
         });
     }
 }

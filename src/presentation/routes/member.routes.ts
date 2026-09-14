@@ -13,6 +13,7 @@ memberRouter.use(FeatureGate('member_directory'));
 
 // Static routes MUST come before dynamic /:id to avoid Express matching them as the id param
 memberRouter.get('/', memberController.getMembers);
+memberRouter.get('/map', memberController.getCongregationMap);
 memberRouter.post('/', memberController.createMember);
 memberRouter.post('/import', memberController.importCsv);
 memberRouter.delete('/bulk', memberController.bulkDeleteMembers);
@@ -26,6 +27,7 @@ memberRouter.delete('/sacraments/:id', memberController.deleteSacrament);
 // Dynamic /:id routes come LAST
 memberRouter.get('/:id', memberController.getMemberById);
 memberRouter.patch('/:id', memberController.updateMember);
+memberRouter.patch('/:id/location', memberController.updateMemberLocation);
 memberRouter.delete('/:id', memberController.deleteMember);
 memberRouter.post('/:id/photo', photoUpload.single('photo'), memberController.uploadPhoto);
 memberRouter.post('/:id/reset-password', memberController.resetMobilePassword);

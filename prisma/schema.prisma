@@ -19,6 +19,8 @@ model Tenant {
 
   // Profile
   address String?
+  latitude  Float?
+  longitude Float?
   phone   String?
   email   String?
 
@@ -223,6 +225,12 @@ model Member {
   phone           String?
   email           String?
   address         String?
+  district        String?
+  city            String?
+  postalCode      String?
+  rayon           String?
+  latitude        Float?
+  longitude       Float?
   photoUrl        String?
   referenceNumber String?
 

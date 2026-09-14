@@ -270,7 +270,13 @@ export class MobileService {
         firstName: data.firstName || member.firstName,
         lastName: data.lastName !== undefined ? data.lastName : member.lastName,
         phone: data.phone !== undefined ? data.phone : member.phone,
-        address: data.address !== undefined ? data.address : member.address
+        address: data.address !== undefined ? data.address : member.address,
+        latitude: data.latitude !== undefined ? (data.latitude !== null ? Number(data.latitude) : null) : member.latitude,
+        longitude: data.longitude !== undefined ? (data.longitude !== null ? Number(data.longitude) : null) : member.longitude,
+        rayon: data.rayon !== undefined ? data.rayon : member.rayon,
+        district: data.district !== undefined ? data.district : member.district,
+        city: data.city !== undefined ? data.city : member.city,
+        postalCode: data.postalCode !== undefined ? data.postalCode : member.postalCode,
       }
     });
 

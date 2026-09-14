@@ -163,5 +163,23 @@ export const memberController = {
         } catch (error: any) {
             res.status(400).json({ error: error.message });
         }
+    },
+
+    async getCongregationMap(req: any, res: Response, next: NextFunction) {
+        try {
+            const data = await memberService.getCongregationMapData(req.user.tenantId, req.query);
+            res.json(data);
+        } catch (error: any) {
+            res.status(400).json({ error: error.message });
+        }
+    },
+
+    async updateMemberLocation(req: any, res: Response, next: NextFunction) {
+        try {
+            const updated = await memberService.updateMemberLocation(req.user.tenantId, req.params.id, req.body);
+            res.json(updated);
+        } catch (error: any) {
+            res.status(400).json({ error: error.message });
+        }
     }
 };
