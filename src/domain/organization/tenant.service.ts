@@ -3,6 +3,8 @@ import { z } from 'zod';
 
 export const updateTenantProfileSchema = z.object({
     address: z.string().optional(),
+    latitude: z.number().optional().nullable(),
+    longitude: z.number().optional().nullable(),
     phone: z.string().optional(),
     email: z.union([z.literal(''), z.string().email()]).optional(),
     timezone: z.string().optional(),
