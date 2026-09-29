@@ -97,10 +97,30 @@ export class MemberService {
 
     async createMember(tenantId: string, data: any) {
         const parsed = createMemberSchema.parse(data);
+        
+        const finalEmail = parsed.email || null;
+        const finalReference = parsed.referenceNumber || null;
+
+        if (finalEmail) {
+            const existingEmail = await prisma.member.findFirst({
+                where: { tenantId, email: finalEmail }
+            });
+            if (existingEmail) throw new Error('Data jemaat dengan email ini sudah terdaftar');
+        }
+        
+        if (finalReference) {
+            const existingRef = await prisma.member.findFirst({
+                where: { tenantId, referenceNumber: finalReference }
+            });
+            if (existingRef) throw new Error('Data jemaat dengan Nomor Induk ini sudah terdaftar');
+        }
+
         const category = await getMemberCategory(tenantId, parsed.birthDate, parsed.category);
         return prisma.member.create({
             data: {
                 ...parsed,
+                email: finalEmail,
+                referenceNumber: finalReference,
                 category,
                 tenantId
             }
@@ -114,6 +134,23 @@ export class MemberService {
         // Use a partial schema so we don't throw 400 when missing unrelated required fields like firstName
         const parsed = createMemberSchema.partial().parse(data);
 
+        const finalEmail = parsed.email !== undefined ? (parsed.email || null) : currentMember.email;
+        const finalReference = parsed.referenceNumber !== undefined ? (parsed.referenceNumber || null) : currentMember.referenceNumber;
+
+        if (finalEmail && finalEmail !== currentMember.email) {
+            const existingEmail = await prisma.member.findFirst({
+                where: { tenantId, email: finalEmail }
+            });
+            if (existingEmail) throw new Error('Data jemaat dengan email ini sudah terdaftar');
+        }
+
+        if (finalReference && finalReference !== currentMember.referenceNumber) {
+            const existingRef = await prisma.member.findFirst({
+                where: { tenantId, referenceNumber: finalReference }
+            });
+            if (existingRef) throw new Error('Data jemaat dengan Nomor Induk ini sudah terdaftar');
+        }
+
         let category = parsed.category;
         if (parsed.birthDate !== undefined) {
             category = await getMemberCategory(tenantId, parsed.birthDate, parsed.category || currentMember.category);
@@ -125,6 +162,8 @@ export class MemberService {
             where: { id: memberId },
             data: {
                 ...parsed,
+                email: finalEmail,
+                referenceNumber: finalReference,
                 ...(category ? { category } : {})
             }
         });
@@ -188,22 +227,50 @@ export class MemberService {
             const finalCat = await getMemberCategory(tenantId, birthDate, initialCat);
             const address = raw.address || null;
 
-            await prisma.member.create({
-                data: {
-                    tenantId,
-                    firstName: raw.firstName || 'Unknown',
-                    lastName: raw.lastName || '',
-                    gender,
-                    email,
-                    phone,
-                    birthDate,
-                    address,
-                    referenceNumber,
-                    category: finalCat,
-                    status: finalStatus
+            try {
+                let existingMember = null;
+                if (email) {
+                    existingMember = await prisma.member.findFirst({ where: { tenantId, email } });
                 }
-            });
-            count++;
+                if (!existingMember && referenceNumber) {
+                    existingMember = await prisma.member.findFirst({ where: { tenantId, referenceNumber } });
+                }
+
+                if (existingMember) {
+                    await prisma.member.update({
+                        where: { id: existingMember.id },
+                        data: {
+                            firstName: raw.firstName || existingMember.firstName,
+                            lastName: raw.lastName || existingMember.lastName,
+                            gender: gender || existingMember.gender,
+                            phone: phone || existingMember.phone,
+                            birthDate: birthDate || existingMember.birthDate,
+                            address: address || existingMember.address,
+                            category: finalCat,
+                            status: finalStatus
+                        }
+                    });
+                } else {
+                    await prisma.member.create({
+                        data: {
+                            tenantId,
+                            firstName: raw.firstName || 'Unknown',
+                            lastName: raw.lastName || '',
+                            gender,
+                            email,
+                            phone,
+                            birthDate,
+                            address,
+                            referenceNumber,
+                            category: finalCat,
+                            status: finalStatus
+                        }
+                    });
+                }
+                count++;
+            } catch (error) {
+                console.error('Skipping row due to error:', error);
+            }
         }
         return { imported: count };
     }
