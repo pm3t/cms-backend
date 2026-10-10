@@ -29,5 +29,8 @@
       "path": "/api/jobs/sunday-greetings",
       "schedule": "0 6 * * 0"
     }
+  ],
+  "regions": [
+    "sin1"
   ]
 }
