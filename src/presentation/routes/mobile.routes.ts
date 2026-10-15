@@ -77,6 +77,15 @@ mobileRouter.post('/facilities/bookings', mobileController.createFacilityBooking
 mobileRouter.get('/small-groups', mobileController.getSmallGroups);
 mobileRouter.post('/small-groups/join', mobileController.requestToJoinSmallGroup);
 
+// Small Groups Leader Portal Routes
+mobileRouter.get('/small-groups/leader/my-groups', mobileController.getLeaderSmallGroups);
+mobileRouter.get('/small-groups/leader/:groupId/details', mobileController.getLeaderGroupDetails);
+mobileRouter.post('/small-groups/leader/join-requests/:requestId/respond', mobileController.respondToJoinRequest);
+mobileRouter.delete('/small-groups/leader/:groupId/members/:targetMemberId', mobileController.removeMemberFromGroup);
+mobileRouter.post('/small-groups/leader/:groupId/meetings', mobileController.createLeaderMeeting);
+mobileRouter.get('/small-groups/leader/meetings/:meetingId', mobileController.getLeaderMeetingDetails);
+mobileRouter.post('/small-groups/leader/meetings/:meetingId/attendance', mobileController.recordLeaderMeetingAttendance);
+
 // Sacrament & Document Requests
 mobileRouter.get('/sacrament-requests', mobileController.getSacramentRequests);
 mobileRouter.post('/sacrament-requests', mobileController.createSacramentRequest);

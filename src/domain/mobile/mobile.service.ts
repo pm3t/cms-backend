@@ -925,5 +925,337 @@ export class MobileService {
       }
     });
   }
+
+  // --- LEADER PORTAL METHODS ---
+  async getLeaderSmallGroups(tenantId: string, memberId: string) {
+    const memberships = await prisma.smallGroupMember.findMany({
+      where: {
+        memberId,
+        role: { in: ['LEADER', 'ASSISTANT'] },
+        group: { tenantId }
+      },
+      include: {
+        group: {
+          include: {
+            _count: {
+              select: {
+                members: true,
+                meetings: true,
+                joinRequests: {
+                  where: { status: 'PENDING' }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return memberships.map(m => ({
+      groupId: m.groupId,
+      role: m.role,
+      name: m.group.name,
+      type: m.group.type,
+      meetingSchedule: m.group.meetingSchedule,
+      location: m.group.location,
+      description: m.group.description,
+      memberCount: m.group._count.members,
+      meetingCount: m.group._count.meetings,
+      pendingRequestsCount: m.group._count.joinRequests
+    }));
+  }
+
+  async getLeaderGroupDetails(tenantId: string, memberId: string, groupId: string) {
+    const isLeader = await prisma.smallGroupMember.findFirst({
+      where: {
+        groupId,
+        memberId,
+        role: { in: ['LEADER', 'ASSISTANT'] },
+        group: { tenantId }
+      }
+    });
+    if (!isLeader) {
+      throw new Error('Hanya pemimpin atau asisten yang dapat mengakses portal ini.');
+    }
+
+    const group = await prisma.smallGroup.findUnique({
+      where: { id: groupId },
+      include: {
+        members: {
+          include: {
+            member: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                email: true,
+                photoUrl: true
+              }
+            }
+          },
+          orderBy: { role: 'asc' }
+        },
+        joinRequests: {
+          where: { status: 'PENDING' },
+          include: {
+            member: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                email: true,
+                photoUrl: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' }
+        },
+        meetings: {
+          include: {
+            _count: {
+              select: { attendance: true }
+            }
+          },
+          orderBy: { date: 'desc' }
+        }
+      }
+    });
+
+    if (!group || group.tenantId !== tenantId) {
+      throw new Error('Kelompok tidak ditemukan.');
+    }
+
+    return group;
+  }
+
+  async respondToJoinRequest(tenantId: string, memberId: string, requestId: string, action: 'APPROVE' | 'REJECT') {
+    const joinReq = await prisma.smallGroupJoinRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        group: {
+          include: {
+            members: {
+              where: {
+                memberId,
+                role: { in: ['LEADER', 'ASSISTANT'] }
+              }
+            }
+          }
+        },
+        member: true
+      }
+    });
+
+    if (!joinReq || joinReq.tenantId !== tenantId) {
+      throw new Error('Permohonan tidak ditemukan.');
+    }
+
+    if (joinReq.group.members.length === 0) {
+      throw new Error('Anda tidak memiliki wewenang untuk merespons permohonan ini.');
+    }
+
+    const newStatus = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+
+    await prisma.smallGroupJoinRequest.update({
+      where: { id: requestId },
+      data: { status: newStatus }
+    });
+
+    if (action === 'APPROVE') {
+      await prisma.smallGroupMember.upsert({
+        where: {
+          groupId_memberId: {
+            groupId: joinReq.groupId,
+            memberId: joinReq.memberId
+          }
+        },
+        update: {
+          role: 'MEMBER'
+        },
+        create: {
+          groupId: joinReq.groupId,
+          memberId: joinReq.memberId,
+          role: 'MEMBER'
+        }
+      });
+    }
+
+    // Send notification to member
+    await prisma.notification.create({
+      data: {
+        tenantId,
+        memberId: joinReq.memberId,
+        type: 'SYSTEM',
+        title: action === 'APPROVE' 
+          ? `Permohonan Bergabung Diterima! 🎉` 
+          : `Informasi Permohonan Kelompok Sel`,
+        body: action === 'APPROVE'
+          ? `Selamat! Permohonan Anda untuk bergabung dalam ${joinReq.group.name} telah disetujui. Selamat bersekutu dan bertumbuh bersama!`
+          : `Permohonan Anda untuk bergabung dalam ${joinReq.group.name} belum dapat disetujui saat ini.`
+      }
+    }).catch(err => console.error('Notification error:', err));
+
+    return { status: newStatus };
+  }
+
+  async removeMemberFromGroup(tenantId: string, memberId: string, groupId: string, targetMemberId: string) {
+    const isLeader = await prisma.smallGroupMember.findFirst({
+      where: {
+        groupId,
+        memberId,
+        role: { in: ['LEADER', 'ASSISTANT'] },
+        group: { tenantId }
+      }
+    });
+    if (!isLeader) {
+      throw new Error('Hanya pemimpin atau asisten yang dapat menghapus anggota.');
+    }
+    if (memberId === targetMemberId) {
+      throw new Error('Pemimpin tidak dapat menghapus dirinya sendiri dari kelompok.');
+    }
+
+    return prisma.smallGroupMember.delete({
+      where: {
+        groupId_memberId: {
+          groupId,
+          memberId: targetMemberId
+        }
+      }
+    });
+  }
+
+  async createLeaderMeeting(tenantId: string, memberId: string, groupId: string, data: any) {
+    const isLeader = await prisma.smallGroupMember.findFirst({
+      where: {
+        groupId,
+        memberId,
+        role: { in: ['LEADER', 'ASSISTANT'] },
+        group: { tenantId }
+      }
+    });
+    if (!isLeader) {
+      throw new Error('Hanya pemimpin atau asisten yang dapat membuat jadwal pertemuan.');
+    }
+
+    if (!data.date) {
+      throw new Error('Tanggal pertemuan wajib diisi.');
+    }
+
+    return prisma.smallGroupMeeting.create({
+      data: {
+        groupId,
+        date: new Date(data.date),
+        title: data.title || null,
+        notes: data.notes || null
+      }
+    });
+  }
+
+  async getLeaderMeetingDetails(tenantId: string, memberId: string, meetingId: string) {
+    const meeting = await prisma.smallGroupMeeting.findUnique({
+      where: { id: meetingId },
+      include: {
+        group: {
+          include: {
+            members: {
+              include: {
+                member: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    phone: true,
+                    photoUrl: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        attendance: true
+      }
+    });
+
+    if (!meeting || meeting.group.tenantId !== tenantId) {
+      throw new Error('Pertemuan tidak ditemukan.');
+    }
+
+    const isLeader = meeting.group.members.some(
+      m => m.memberId === memberId && (m.role === 'LEADER' || m.role === 'ASSISTANT')
+    );
+    if (!isLeader) {
+      throw new Error('Akses ditolak.');
+    }
+
+    const attendanceMap: Record<string, string> = {};
+    meeting.attendance.forEach(a => {
+      attendanceMap[a.memberId] = a.status;
+    });
+
+    return {
+      meeting: {
+        id: meeting.id,
+        groupId: meeting.groupId,
+        groupName: meeting.group.name,
+        date: meeting.date,
+        title: meeting.title,
+        notes: meeting.notes
+      },
+      members: meeting.group.members.map(m => ({
+        memberId: m.memberId,
+        name: `${m.member.firstName} ${m.member.lastName || ''}`.trim(),
+        role: m.role,
+        phone: m.member.phone,
+        status: attendanceMap[m.memberId] || 'PRESENT'
+      }))
+    };
+  }
+
+  async recordLeaderMeetingAttendance(tenantId: string, memberId: string, meetingId: string, attendances: any[]) {
+    const meeting = await prisma.smallGroupMeeting.findUnique({
+      where: { id: meetingId },
+      include: {
+        group: {
+          include: {
+            members: {
+              where: {
+                memberId,
+                role: { in: ['LEADER', 'ASSISTANT'] }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!meeting || meeting.group.tenantId !== tenantId || meeting.group.members.length === 0) {
+      throw new Error('Akses ditolak atau pertemuan tidak ditemukan.');
+    }
+
+    const results = await prisma.$transaction(
+      attendances.map(att =>
+        prisma.smallGroupAttendance.upsert({
+          where: {
+            meetingId_memberId: {
+              meetingId,
+              memberId: att.memberId
+            }
+          },
+          update: {
+            status: att.status
+          },
+          create: {
+            meetingId,
+            memberId: att.memberId,
+            status: att.status
+          }
+        })
+      )
+    );
+
+    return { success: true, count: results.length };
+  }
 }
 

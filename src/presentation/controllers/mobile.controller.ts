@@ -314,6 +314,78 @@ export const mobileController = {
     } catch (e: any) {
       res.status(400).json({ error: e.message });
     }
+  },
+
+  // --- LEADER PORTAL CONTROLLERS ---
+  async getLeaderSmallGroups(req: any, res: Response) {
+    try {
+      const groups = await mobileService.getLeaderSmallGroups(req.user.tenantId, req.user.memberId);
+      res.json(groups);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  },
+
+  async getLeaderGroupDetails(req: any, res: Response) {
+    try {
+      const details = await mobileService.getLeaderGroupDetails(req.user.tenantId, req.user.memberId, req.params.groupId);
+      res.json(details);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  },
+
+  async respondToJoinRequest(req: any, res: Response) {
+    try {
+      const { action } = req.body;
+      if (!action || !['APPROVE', 'REJECT'].includes(action)) {
+        return res.status(400).json({ error: 'Action harus APPROVE atau REJECT' });
+      }
+      const result = await mobileService.respondToJoinRequest(req.user.tenantId, req.user.memberId, req.params.requestId, action);
+      res.json(result);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  },
+
+  async removeMemberFromGroup(req: any, res: Response) {
+    try {
+      await mobileService.removeMemberFromGroup(req.user.tenantId, req.user.memberId, req.params.groupId, req.params.targetMemberId);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  },
+
+  async createLeaderMeeting(req: any, res: Response) {
+    try {
+      const meeting = await mobileService.createLeaderMeeting(req.user.tenantId, req.user.memberId, req.params.groupId, req.body);
+      res.status(201).json(meeting);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  },
+
+  async getLeaderMeetingDetails(req: any, res: Response) {
+    try {
+      const details = await mobileService.getLeaderMeetingDetails(req.user.tenantId, req.user.memberId, req.params.meetingId);
+      res.json(details);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  },
+
+  async recordLeaderMeetingAttendance(req: any, res: Response) {
+    try {
+      const { attendances } = req.body;
+      if (!Array.isArray(attendances)) {
+        return res.status(400).json({ error: 'Attendances array wajib dikirim.' });
+      }
+      const result = await mobileService.recordLeaderMeetingAttendance(req.user.tenantId, req.user.memberId, req.params.meetingId, attendances);
+      res.json(result);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
   }
 };
 
