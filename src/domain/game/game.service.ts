@@ -107,8 +107,149 @@ export class GameService {
         points: q.points,
         isAttempted: !!attempt,
         isCorrect: attempt ? attempt.isCorrect : null,
+        correctAnswer: attempt ? q.correctAnswer : undefined,
       };
     });
+  }
+
+  /**
+   * Helper to clean text: lowercase, strip punctuation, collapse extra spaces.
+   */
+  private cleanText(str: string): string {
+    if (!str) return '';
+    return str
+      .toLowerCase()
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'’“”]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Helper for guessing biblical characters: remove titles like raja, nabi, rasul, etc.
+   */
+  private cleanGuessText(str: string): string {
+    let cleaned = this.cleanText(str);
+    cleaned = cleaned.replace(/^(raja|nabi|rasul|bapa|ibu|imam|pendeta|pastor|murid)\s+/i, '').trim();
+    cleaned = cleaned.replace(/\bzakeus\b/g, 'zakheus');
+    cleaned = cleaned.replace(/\byohanes pembaptis\b/g, 'yohanes');
+    return cleaned;
+  }
+
+  /**
+   * Intelligent, forgiving answer comparison across all question types.
+   */
+  private checkAnswerMatch(type: string, userAnswer: string, correctAnswer: string, options?: any): boolean {
+    if (!userAnswer || !correctAnswer) return false;
+
+    const rawUser = userAnswer.trim();
+    const rawCorrect = correctAnswer.trim();
+
+    // 1. Direct equality (case-insensitive)
+    if (rawUser.toLowerCase() === rawCorrect.toLowerCase()) {
+      return true;
+    }
+
+    const cleanUser = this.cleanText(userAnswer);
+    const cleanCorrect = this.cleanText(correctAnswer);
+
+    if (cleanUser === cleanCorrect) {
+      return true;
+    }
+
+    // 2. Type-specific validations
+    if (type === 'QUIZ') {
+      const stripPrefix = (s: string) => this.cleanText(s.replace(/^[a-d1-4][.)\-]\s*/i, ''));
+      if (stripPrefix(userAnswer) === stripPrefix(correctAnswer)) {
+        return true;
+      }
+
+      // Check letter or option index matching
+      let optsArray: string[] = [];
+      if (options) {
+        if (Array.isArray(options)) {
+          optsArray = options;
+        } else if (typeof options === 'string') {
+          try {
+            optsArray = JSON.parse(options);
+          } catch {
+            optsArray = options.split(',').map((s: string) => s.trim());
+          }
+        }
+      }
+
+      if (optsArray.length > 0) {
+        const letters = ['a', 'b', 'c', 'd'];
+        const userLetter = cleanUser.length === 1 && letters.includes(cleanUser) ? cleanUser : null;
+        const correctLetter = cleanCorrect.length === 1 && letters.includes(cleanCorrect) ? cleanCorrect : null;
+
+        let correctOptIdx = optsArray.findIndex(
+          (opt) => this.cleanText(opt) === cleanCorrect || stripPrefix(opt) === stripPrefix(correctAnswer)
+        );
+        if (correctOptIdx === -1 && correctLetter) {
+          correctOptIdx = letters.indexOf(correctLetter);
+        }
+
+        if (correctOptIdx !== -1) {
+          const expectedOption = optsArray[correctOptIdx];
+          if (
+            cleanUser === this.cleanText(expectedOption) ||
+            stripPrefix(userAnswer) === stripPrefix(expectedOption)
+          ) {
+            return true;
+          }
+          if (userLetter && letters[correctOptIdx] === userLetter) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    if (type === 'SCRAMBLE') {
+      return cleanUser === cleanCorrect;
+    }
+
+    if (type === 'WORD_SEARCH') {
+      // Split by comma or whitespace, sort words and compare set
+      const userWords = cleanUser.split(' ').filter(Boolean).sort();
+      const correctWords = cleanCorrect.split(' ').filter(Boolean).sort();
+
+      if (userWords.length === correctWords.length) {
+        const allMatch = userWords.every((w, idx) => w === correctWords[idx]);
+        if (allMatch) return true;
+      }
+
+      const userWordSet = new Set(userWords);
+      const correctWordSet = new Set(correctWords);
+      if (userWordSet.size === correctWordSet.size) {
+        for (const cw of correctWordSet) {
+          if (!userWordSet.has(cw)) return false;
+        }
+        return true;
+      }
+
+      return false;
+    }
+
+    if (type === 'GUESS') {
+      const cgUser = this.cleanGuessText(userAnswer);
+      const cgCorrect = this.cleanGuessText(correctAnswer);
+
+      if (cgUser === cgCorrect) {
+        return true;
+      }
+
+      if (cgUser.length >= 3 && cgCorrect.length >= 3) {
+        if (cgUser.includes(cgCorrect) || cgCorrect.includes(cgUser)) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    return cleanUser === cleanCorrect;
   }
 
   /**
@@ -139,10 +280,8 @@ export class GameService {
       throw new Error('Anda sudah menjawab pertanyaan ini');
     }
 
-    // 3. Verify answer (case-insensitive & trimmed comparison)
-    const normalizedUserAnswer = answer.trim().toLowerCase();
-    const normalizedCorrectAnswer = question.correctAnswer.trim().toLowerCase();
-    const isCorrect = normalizedUserAnswer === normalizedCorrectAnswer;
+    // 3. Verify answer with intelligent tolerant matching
+    const isCorrect = this.checkAnswerMatch(question.type, answer, question.correctAnswer, question.options);
     const pointsEarned = isCorrect ? question.points : 0;
 
     // 4. Save attempt
