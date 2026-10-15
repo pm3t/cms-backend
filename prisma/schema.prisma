@@ -197,21 +197,41 @@ enum SacramentType {
 }
 
 model Family {
-  id   String @id @default(uuid())
-  name String // E.g. "Keluarga Panjaitan"
+  id             String    @id @default(uuid())
+  kkjNumber      String?
+  name           String    // E.g. "Keluarga Panjaitan"
 
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // This relation points to a specific Member who acts as the head
   // Wait, circular relation might cause issues on initial insert, we map it nullable
-  headOfFamilyId String? @unique
-  headOfFamily   Member? @relation("FamilyHead", fields: [headOfFamilyId], references: [id], onDelete: SetNull)
+  headOfFamilyId String?   @unique
+  headOfFamily   Member?   @relation("FamilyHead", fields: [headOfFamilyId], references: [id], onDelete: SetNull)
 
   members Member[] @relation("FamilyMembers")
 
+  // Additional KKJ Details matching physical KKJ
+  address        String?
+  rtRw           String?
+  district       String?   // Kecamatan
+  city           String?   // Kab./Kodya
+  province       String?   // Propinsi
+  postalCode     String?
+  rayon          String?   // Rayon
+  branch         String?   // Cabang / Ranting
+  phone          String?
+  maritalStatus  String?   // Status (e.g. "MENIKAH", "LAJANG", "DUDA/JANDA")
+  marriageDate   DateTime? // Tanggal Pernikahan
+  processDate    DateTime? @default(now()) // Tanggal Proses
+  pastorName     String?   // Nama Pendeta / Gembala
+  citySign       String?   // Tempat tanda tangan (e.g. "Bengkulu")
+  notes          String?   @db.Text
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, kkjNumber])
 }
 
 model Member {
@@ -254,6 +274,18 @@ model Member {
 
   // Reverse relation for head of family
   headedFamily Family? @relation("FamilyHead")
+
+  // KKJ Family and Personal Info
+  familyRole         String?   // "HEAD", "SPOUSE", "CHILD", "OTHER"
+  familyRelation     String?   // e.g. "Mertua", "Orang Tua", "Famili", dll
+  education          String?   // Pendidikan Terakhir
+  occupation         String?   // Pekerjaan
+  isBaptized         Boolean   @default(false)
+  baptizedDate       DateTime?
+  isChildDedicated   Boolean   @default(false)
+  childDedicatedDate DateTime?
+  isMarried          Boolean   @default(false)
+  marriageDate       DateTime?
 
   sacraments         SacramentRecord[]
   donations          FinancialRecord[]

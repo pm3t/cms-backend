@@ -3,9 +3,34 @@ import { z } from 'zod';
 import { MembershipStatus, MemberCategory } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
+const safeDate = z.preprocess((arg) => {
+    if (!arg || arg === '') return null;
+    if (typeof arg === 'string' || arg instanceof Date) {
+        const d = new Date(arg);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+}, z.date().nullable().optional());
+
 export const createFamilySchema = z.object({
-    name: z.string().min(2),
-    headOfFamilyId: z.string().optional()
+    name: z.string().min(1, 'Nama keluarga harus diisi'),
+    kkjNumber: z.string().optional().nullable(),
+    headOfFamilyId: z.string().optional().nullable(),
+    address: z.string().optional().nullable(),
+    rtRw: z.string().optional().nullable(),
+    district: z.string().optional().nullable(),
+    city: z.string().optional().nullable(),
+    province: z.string().optional().nullable(),
+    postalCode: z.string().optional().nullable(),
+    rayon: z.string().optional().nullable(),
+    branch: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    maritalStatus: z.string().optional().nullable(),
+    marriageDate: safeDate,
+    processDate: safeDate,
+    pastorName: z.string().optional().nullable(),
+    citySign: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
 });
 
 export interface AgeGroupRule {
@@ -52,8 +77,9 @@ export async function getMemberCategory(tenantId: string, birthDate: Date | stri
 export const createMemberSchema = z.object({
     firstName: z.string().min(1),
     lastName: z.string().optional().nullable(),
-    gender: z.string().length(1).optional().nullable(),
-    birthDate: z.string().datetime().optional().nullable(),
+    gender: z.string().optional().nullable(),
+    birthDate: safeDate,
+    birthPlace: z.string().optional().nullable(),
     email: z.union([z.literal(''), z.string().email()]).optional().nullable(),
     phone: z.string().optional().nullable(),
     address: z.string().optional().nullable(),
@@ -67,7 +93,17 @@ export const createMemberSchema = z.object({
     status: z.nativeEnum(MembershipStatus).optional(),
     category: z.nativeEnum(MemberCategory).optional(),
     isPrivate: z.boolean().optional(),
-    familyId: z.string().nullable().optional()
+    familyId: z.string().nullable().optional(),
+    familyRole: z.string().nullable().optional(),
+    familyRelation: z.string().nullable().optional(),
+    education: z.string().nullable().optional(),
+    occupation: z.string().nullable().optional(),
+    isBaptized: z.boolean().optional(),
+    baptizedDate: safeDate,
+    isChildDedicated: z.boolean().optional(),
+    childDedicatedDate: safeDate,
+    isMarried: z.boolean().optional(),
+    marriageDate: safeDate
 });
 
 export class MemberService {
@@ -398,34 +434,351 @@ export class MemberService {
 }
 
 export class FamilyService {
-    async listFamilies(tenantId: string) {
-        return prisma.family.findMany({
-            where: { tenantId },
+    async generateKkjNumber(tenantId: string) {
+        const year = new Date().getFullYear();
+        const count = await prisma.family.count({ where: { tenantId } });
+        const seq = String(count + 1).padStart(4, '0');
+        return `KKJ-${year}-${seq}`;
+    }
+
+    async listFamilies(tenantId: string, search?: string) {
+        const where: any = { tenantId };
+        if (search && search.trim() !== '') {
+            const q = search.trim();
+            where.OR = [
+                { name: { contains: q, mode: 'insensitive' } },
+                { kkjNumber: { contains: q, mode: 'insensitive' } },
+                { address: { contains: q, mode: 'insensitive' } },
+                { rayon: { contains: q, mode: 'insensitive' } },
+                { branch: { contains: q, mode: 'insensitive' } },
+                { headOfFamily: { firstName: { contains: q, mode: 'insensitive' } } },
+                { headOfFamily: { lastName: { contains: q, mode: 'insensitive' } } }
+            ];
+        }
+
+        const families = await prisma.family.findMany({
+            where,
+            include: {
+                headOfFamily: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        photoUrl: true,
+                        phone: true,
+                        email: true
+                    }
+                },
+                members: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        gender: true,
+                        category: true,
+                        familyRole: true,
+                        familyRelation: true,
+                        photoUrl: true
+                    }
+                },
+                _count: {
+                    select: { members: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        return families;
+    }
+
+    async getFamilyById(tenantId: string, familyId: string) {
+        const family = await prisma.family.findUnique({
+            where: { id: familyId },
             include: {
                 headOfFamily: true,
-                members: true
+                members: {
+                    include: {
+                        sacraments: true
+                    }
+                },
+                tenant: {
+                    select: {
+                        id: true,
+                        name: true,
+                        logoUrl: true,
+                        address: true,
+                        phone: true,
+                        email: true
+                    }
+                }
             }
         });
+
+        if (!family || family.tenantId !== tenantId) {
+            throw new Error('Data keluarga tidak ditemukan');
+        }
+
+        // Sort members: HEAD first, then SPOUSE, then CHILD, then OTHER
+        const roleOrder: Record<string, number> = {
+            'HEAD': 1,
+            'SPOUSE': 2,
+            'CHILD': 3,
+            'OTHER': 4
+        };
+
+        family.members.sort((a, b) => {
+            const orderA = roleOrder[a.familyRole || 'OTHER'] || 99;
+            const orderB = roleOrder[b.familyRole || 'OTHER'] || 99;
+            if (orderA !== orderB) return orderA - orderB;
+            const dateA = a.birthDate ? new Date(a.birthDate).getTime() : 0;
+            const dateB = b.birthDate ? new Date(b.birthDate).getTime() : 0;
+            return dateA - dateB;
+        });
+
+        return family;
     }
 
     async createFamily(tenantId: string, data: any) {
-        const parsed = createFamilySchema.parse(data);
-        return prisma.family.create({
+        let kkjNumber = data.kkjNumber ? String(data.kkjNumber).trim() : null;
+        if (!kkjNumber) {
+            kkjNumber = await this.generateKkjNumber(tenantId);
+        } else {
+            const existing = await prisma.family.findFirst({
+                where: { tenantId, kkjNumber }
+            });
+            if (existing) {
+                throw new Error(`Nomor KKJ "${kkjNumber}" sudah terdaftar.`);
+            }
+        }
+
+        const parsed = createFamilySchema.parse({ ...data, kkjNumber });
+
+        const family = await prisma.family.create({
             data: {
                 ...parsed,
                 tenantId
             }
         });
+
+        // If headOfFamilyId is specified, set member's familyId and familyRole = 'HEAD'
+        if (parsed.headOfFamilyId) {
+            await prisma.member.updateMany({
+                where: { id: parsed.headOfFamilyId, tenantId },
+                data: {
+                    familyId: family.id,
+                    familyRole: 'HEAD'
+                }
+            });
+        }
+
+        return this.getFamilyById(tenantId, family.id);
     }
 
     async updateFamily(tenantId: string, familyId: string, data: any) {
-        return prisma.family.update({
+        const current = await prisma.family.findUnique({
+            where: { id: familyId }
+        });
+        if (!current || current.tenantId !== tenantId) {
+            throw new Error('Data keluarga tidak ditemukan');
+        }
+
+        const parsed = createFamilySchema.partial().parse(data);
+
+        if (parsed.kkjNumber && parsed.kkjNumber !== current.kkjNumber) {
+            const existing = await prisma.family.findFirst({
+                where: { tenantId, kkjNumber: parsed.kkjNumber }
+            });
+            if (existing && existing.id !== familyId) {
+                throw new Error(`Nomor KKJ "${parsed.kkjNumber}" sudah digunakan keluarga lain.`);
+            }
+        }
+
+        // Handle headOfFamily changes
+        if (parsed.headOfFamilyId !== undefined && parsed.headOfFamilyId !== current.headOfFamilyId) {
+            if (parsed.headOfFamilyId) {
+                await prisma.member.updateMany({
+                    where: { id: parsed.headOfFamilyId, tenantId },
+                    data: {
+                        familyId: familyId,
+                        familyRole: 'HEAD'
+                    }
+                });
+            }
+            if (current.headOfFamilyId && current.headOfFamilyId !== parsed.headOfFamilyId) {
+                await prisma.member.updateMany({
+                    where: { id: current.headOfFamilyId, tenantId, familyId },
+                    data: { familyRole: 'SPOUSE' }
+                });
+            }
+        }
+
+        await prisma.family.update({
             where: { id: familyId, tenantId },
             data: {
-                name: data.name,
-                headOfFamilyId: data.headOfFamilyId || null
+                ...parsed
             }
         });
+
+        return this.getFamilyById(tenantId, familyId);
+    }
+
+    async deleteFamily(tenantId: string, familyId: string) {
+        const family = await prisma.family.findUnique({ where: { id: familyId } });
+        if (!family || family.tenantId !== tenantId) {
+            throw new Error('Data keluarga tidak ditemukan');
+        }
+
+        // Unlink all members
+        await prisma.member.updateMany({
+            where: { familyId, tenantId },
+            data: {
+                familyId: null,
+                familyRole: null,
+                familyRelation: null
+            }
+        });
+
+        await prisma.family.delete({
+            where: { id: familyId, tenantId }
+        });
+
+        return { message: 'Keluarga berhasil dihapus' };
+    }
+
+    async addFamilyMember(tenantId: string, familyId: string, data: any) {
+        const family = await prisma.family.findUnique({ where: { id: familyId } });
+        if (!family || family.tenantId !== tenantId) {
+            throw new Error('Data keluarga tidak ditemukan');
+        }
+
+        let memberId: string;
+        const role = data.familyRole || 'OTHER';
+
+        if (data.existingMemberId) {
+            const member = await prisma.member.findUnique({ where: { id: data.existingMemberId } });
+            if (!member || member.tenantId !== tenantId) throw new Error('Data jemaat tidak ditemukan');
+
+            memberId = member.id;
+            await prisma.member.update({
+                where: { id: memberId },
+                data: {
+                    familyId,
+                    familyRole: role,
+                    familyRelation: data.familyRelation || null,
+                    birthPlace: data.birthPlace !== undefined ? data.birthPlace : member.birthPlace,
+                    birthDate: data.birthDate ? new Date(data.birthDate) : (data.birthDate === null ? null : member.birthDate),
+                    gender: data.gender !== undefined ? data.gender : member.gender,
+                    education: data.education !== undefined ? data.education : member.education,
+                    occupation: data.occupation !== undefined ? data.occupation : member.occupation,
+                    isBaptized: data.isBaptized !== undefined ? Boolean(data.isBaptized) : member.isBaptized,
+                    baptizedDate: data.baptizedDate ? new Date(data.baptizedDate) : (data.baptizedDate === null ? null : member.baptizedDate),
+                    isChildDedicated: data.isChildDedicated !== undefined ? Boolean(data.isChildDedicated) : member.isChildDedicated,
+                    childDedicatedDate: data.childDedicatedDate ? new Date(data.childDedicatedDate) : (data.childDedicatedDate === null ? null : member.childDedicatedDate),
+                    isMarried: data.isMarried !== undefined ? Boolean(data.isMarried) : member.isMarried,
+                    marriageDate: data.marriageDate ? new Date(data.marriageDate) : (data.marriageDate === null ? null : member.marriageDate),
+                }
+            });
+        } else {
+            const parsed = createMemberSchema.parse({
+                ...data,
+                familyId,
+                familyRole: role
+            });
+            const created = await prisma.member.create({
+                data: {
+                    ...parsed,
+                    tenantId,
+                    familyId,
+                    familyRole: role,
+                    category: await getMemberCategory(tenantId, parsed.birthDate, parsed.category)
+                }
+            });
+            memberId = created.id;
+        }
+
+        if (role === 'HEAD') {
+            await prisma.family.update({
+                where: { id: familyId },
+                data: { headOfFamilyId: memberId }
+            });
+        }
+
+        return this.getFamilyById(tenantId, familyId);
+    }
+
+    async updateFamilyMember(tenantId: string, familyId: string, memberId: string, data: any) {
+        const member = await prisma.member.findUnique({ where: { id: memberId } });
+        if (!member || member.tenantId !== tenantId || member.familyId !== familyId) {
+            throw new Error('Data anggota keluarga tidak ditemukan');
+        }
+
+        const role = data.familyRole !== undefined ? data.familyRole : member.familyRole;
+
+        await prisma.member.update({
+            where: { id: memberId },
+            data: {
+                firstName: data.firstName !== undefined ? data.firstName : member.firstName,
+                lastName: data.lastName !== undefined ? data.lastName : member.lastName,
+                gender: data.gender !== undefined ? data.gender : member.gender,
+                birthPlace: data.birthPlace !== undefined ? data.birthPlace : member.birthPlace,
+                birthDate: data.birthDate ? new Date(data.birthDate) : (data.birthDate === null ? null : member.birthDate),
+                familyRole: role,
+                familyRelation: data.familyRelation !== undefined ? data.familyRelation : member.familyRelation,
+                education: data.education !== undefined ? data.education : member.education,
+                occupation: data.occupation !== undefined ? data.occupation : member.occupation,
+                isBaptized: data.isBaptized !== undefined ? Boolean(data.isBaptized) : member.isBaptized,
+                baptizedDate: data.baptizedDate ? new Date(data.baptizedDate) : (data.baptizedDate === null ? null : member.baptizedDate),
+                isChildDedicated: data.isChildDedicated !== undefined ? Boolean(data.isChildDedicated) : member.isChildDedicated,
+                childDedicatedDate: data.childDedicatedDate ? new Date(data.childDedicatedDate) : (data.childDedicatedDate === null ? null : member.childDedicatedDate),
+                isMarried: data.isMarried !== undefined ? Boolean(data.isMarried) : member.isMarried,
+                marriageDate: data.marriageDate ? new Date(data.marriageDate) : (data.marriageDate === null ? null : member.marriageDate),
+                phone: data.phone !== undefined ? data.phone : member.phone,
+                email: data.email !== undefined ? (data.email || null) : member.email,
+            }
+        });
+
+        if (role === 'HEAD') {
+            await prisma.family.update({
+                where: { id: familyId },
+                data: { headOfFamilyId: memberId }
+            });
+        } else {
+            const family = await prisma.family.findUnique({ where: { id: familyId } });
+            if (family && family.headOfFamilyId === memberId && role !== 'HEAD') {
+                await prisma.family.update({
+                    where: { id: familyId },
+                    data: { headOfFamilyId: null }
+                });
+            }
+        }
+
+        return this.getFamilyById(tenantId, familyId);
+    }
+
+    async removeFamilyMember(tenantId: string, familyId: string, memberId: string) {
+        const member = await prisma.member.findUnique({ where: { id: memberId } });
+        if (!member || member.tenantId !== tenantId || member.familyId !== familyId) {
+            throw new Error('Data anggota keluarga tidak ditemukan');
+        }
+
+        await prisma.member.update({
+            where: { id: memberId },
+            data: {
+                familyId: null,
+                familyRole: null,
+                familyRelation: null
+            }
+        });
+
+        const family = await prisma.family.findUnique({ where: { id: familyId } });
+        if (family && family.headOfFamilyId === memberId) {
+            await prisma.family.update({
+                where: { id: familyId },
+                data: { headOfFamilyId: null }
+            });
+        }
+
+        return this.getFamilyById(tenantId, familyId);
     }
 }
 

@@ -108,13 +108,31 @@ export const memberController = {
         }
     },
 
-    // --- FAMILIES ---
+    // --- FAMILIES & KKJ ---
+    async generateKkjNumber(req: any, res: Response, next: NextFunction) {
+        try {
+            const kkjNumber = await familyService.generateKkjNumber(req.user.tenantId);
+            res.json({ kkjNumber });
+        } catch (err: any) {
+            res.status(400).json({ error: err.message });
+        }
+    },
+
     async getFamilies(req: any, res: Response, next: NextFunction) {
         try {
-            const families = await familyService.listFamilies(req.user.tenantId);
+            const families = await familyService.listFamilies(req.user.tenantId, req.query.search as string);
             res.json(families);
         } catch (err: any) {
             res.status(400).json({ error: err.message });
+        }
+    },
+
+    async getFamilyById(req: any, res: Response, next: NextFunction) {
+        try {
+            const family = await familyService.getFamilyById(req.user.tenantId, req.params.id);
+            res.json(family);
+        } catch (err: any) {
+            res.status(404).json({ error: err.message });
         }
     },
 
@@ -131,6 +149,45 @@ export const memberController = {
     async updateFamily(req: any, res: Response, next: NextFunction) {
         try {
             const family = await familyService.updateFamily(req.user.tenantId, req.params.id, req.body);
+            res.json(family);
+        } catch (error: any) {
+            if (error.errors) return res.status(400).json({ error: error.errors });
+            res.status(400).json({ error: error.message });
+        }
+    },
+
+    async deleteFamily(req: any, res: Response, next: NextFunction) {
+        try {
+            const result = await familyService.deleteFamily(req.user.tenantId, req.params.id);
+            res.json(result);
+        } catch (error: any) {
+            res.status(400).json({ error: error.message });
+        }
+    },
+
+    async addFamilyMember(req: any, res: Response, next: NextFunction) {
+        try {
+            const family = await familyService.addFamilyMember(req.user.tenantId, req.params.id, req.body);
+            res.status(201).json(family);
+        } catch (error: any) {
+            if (error.errors) return res.status(400).json({ error: error.errors });
+            res.status(400).json({ error: error.message });
+        }
+    },
+
+    async updateFamilyMember(req: any, res: Response, next: NextFunction) {
+        try {
+            const family = await familyService.updateFamilyMember(req.user.tenantId, req.params.id, req.params.memberId, req.body);
+            res.json(family);
+        } catch (error: any) {
+            if (error.errors) return res.status(400).json({ error: error.errors });
+            res.status(400).json({ error: error.message });
+        }
+    },
+
+    async removeFamilyMember(req: any, res: Response, next: NextFunction) {
+        try {
+            const family = await familyService.removeFamilyMember(req.user.tenantId, req.params.id, req.params.memberId);
             res.json(family);
         } catch (error: any) {
             res.status(400).json({ error: error.message });

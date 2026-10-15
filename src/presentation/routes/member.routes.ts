@@ -18,9 +18,17 @@ memberRouter.post('/', memberController.createMember);
 memberRouter.post('/import', memberController.importCsv);
 memberRouter.delete('/bulk', memberController.bulkDeleteMembers);
 
+memberRouter.get('/families/generate-kkj', memberController.generateKkjNumber);
 memberRouter.get('/families/all', memberController.getFamilies);
+memberRouter.get('/families/:id', memberController.getFamilyById);
 memberRouter.post('/families/create', memberController.createFamily);
 memberRouter.patch('/families/:id', memberController.updateFamily);
+memberRouter.delete('/families/:id', memberController.deleteFamily);
+
+// Family Members management
+memberRouter.post('/families/:id/members', memberController.addFamilyMember);
+memberRouter.patch('/families/:id/members/:memberId', memberController.updateFamilyMember);
+memberRouter.delete('/families/:id/members/:memberId', memberController.removeFamilyMember);
 
 memberRouter.delete('/sacraments/:id', memberController.deleteSacrament);
 
