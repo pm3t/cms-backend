@@ -75,6 +75,59 @@ export async function getMemberCategory(tenantId: string, birthDate: Date | stri
     return matched ? matched.category : (manualCategory || MemberCategory.ADULT);
 }
 
+export function parseBirthDate(val: any): Date | null {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === 'number') {
+        return new Date(Math.round((val - 25569) * 86400 * 1000));
+    }
+    const s = String(val).trim();
+    const ddmmyyyy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (ddmmyyyy) {
+        const day = parseInt(ddmmyyyy[1], 10);
+        const month = parseInt(ddmmyyyy[2], 10) - 1;
+        const year = parseInt(ddmmyyyy[3], 10);
+        const d = new Date(Date.UTC(year, month, day));
+        return isNaN(d.getTime()) ? null : d;
+    }
+    const yyyymmdd = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (yyyymmdd) {
+        const year = parseInt(yyyymmdd[1], 10);
+        const month = parseInt(yyyymmdd[2], 10) - 1;
+        const day = parseInt(yyyymmdd[3], 10);
+        const d = new Date(Date.UTC(year, month, day));
+        return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+}
+
+export function formatDDMMYYYY(val: any, fallbackDate?: Date | null): string | null {
+    if (val) {
+        if (typeof val === 'number') {
+            const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+            return String(d.getUTCDate()).padStart(2, '0') + String(d.getUTCMonth() + 1).padStart(2, '0') + d.getUTCFullYear();
+        }
+        const s = String(val).trim();
+        const ddmmyyyy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (ddmmyyyy) {
+            return String(ddmmyyyy[1]).padStart(2, '0') + String(ddmmyyyy[2]).padStart(2, '0') + ddmmyyyy[3];
+        }
+        const yyyymmdd = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+        if (yyyymmdd) {
+            return String(yyyymmdd[3]).padStart(2, '0') + String(yyyymmdd[2]).padStart(2, '0') + yyyymmdd[1];
+        }
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) {
+            return String(d.getUTCDate()).padStart(2, '0') + String(d.getUTCMonth() + 1).padStart(2, '0') + d.getUTCFullYear();
+        }
+    }
+    if (fallbackDate && fallbackDate instanceof Date && !isNaN(fallbackDate.getTime())) {
+        return String(fallbackDate.getUTCDate()).padStart(2, '0') + String(fallbackDate.getUTCMonth() + 1).padStart(2, '0') + fallbackDate.getUTCFullYear();
+    }
+    return null;
+}
+
 export const createMemberSchema = z.object({
     firstName: z.string().min(1),
     lastName: z.string().optional().nullable(),
@@ -166,6 +219,15 @@ export class MemberService {
         }
 
         const category = await getMemberCategory(tenantId, parsed.birthDate, parsed.category);
+
+        let defaultPasswordHash: string | undefined = undefined;
+        if (parsed.birthDate) {
+            const pwd = formatDDMMYYYY(null, parsed.birthDate);
+            if (pwd) {
+                defaultPasswordHash = await bcrypt.hash(pwd, 10);
+            }
+        }
+
         return prisma.member.create({
             data: {
                 ...parsed,
@@ -173,7 +235,8 @@ export class MemberService {
                 phone: finalPhone || parsed.phone || null,
                 referenceNumber: finalReference,
                 category,
-                tenantId
+                tenantId,
+                ...(defaultPasswordHash ? { passwordHash: defaultPasswordHash } : {})
             }
         });
     }
@@ -281,15 +344,13 @@ export class MemberService {
             };
             const initialCat = catMap[rawCat] || 'ADULT';
 
-            // Parse birthDate safely
-            let birthDate: Date | null = null;
-            const rawBirthDate = raw.birthDate || raw.birthdate;
-            if (rawBirthDate) {
-                const parsedDate = new Date(rawBirthDate);
-                if (!isNaN(parsedDate.getTime())) {
-                    birthDate = parsedDate;
-                }
-            }
+            // Parse birthDate safely (supports DD/MM/YYYY, YYYY-MM-DD, Excel serial date, etc.)
+            const rawBirthDate = raw.birthDate || raw.birthdate || raw.birth_date || raw.tglLahir || raw.tgl_lahir || raw.tanggalLahir || raw.tanggal_lahir;
+            const birthDate = parseBirthDate(rawBirthDate);
+
+            // Generate default password as ddmmyyyy of birthDate, or fallback to '123456'
+            const defaultPassword = formatDDMMYYYY(rawBirthDate, birthDate) || '123456';
+            const defaultPasswordHash = await bcrypt.hash(defaultPassword, 10);
 
             const finalCat = await getMemberCategory(tenantId, birthDate, initialCat);
             const address = raw.address || null;
@@ -346,11 +407,13 @@ export class MemberService {
                             address: address || existingMember.address,
                             referenceNumber: referenceNumber || existingMember.referenceNumber,
                             category: finalCat,
-                            status: finalStatus
+                            status: finalStatus,
+                            // Set default password if the existing member doesn't have one yet
+                            ...(existingMember.passwordHash ? {} : { passwordHash: defaultPasswordHash })
                         }
                     });
                 } else {
-                    // Create new member
+                    // Create new member with default password from birthdate (ddmmyyyy)
                     await prisma.member.create({
                         data: {
                             tenantId,
@@ -363,7 +426,8 @@ export class MemberService {
                             address,
                             referenceNumber: referenceNumber?.trim() || null,
                             category: finalCat,
-                            status: finalStatus
+                            status: finalStatus,
+                            passwordHash: defaultPasswordHash,
                         }
                     });
                 }
