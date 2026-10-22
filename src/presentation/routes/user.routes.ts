@@ -8,8 +8,10 @@ const userRouter = Router();
 userRouter.use(authenticateJWT);
 userRouter.use(SubscriptionGate);
 
+userRouter.get('/permissions', userController.getAvailablePermissions);
 userRouter.get('/', userController.listUsers);
 userRouter.post('/', userController.createUser);
+userRouter.patch('/:id', userController.updateUser);
 userRouter.delete('/:id', userController.deleteUser);
 userRouter.post('/:id/reset-password', userController.resetPassword);
 

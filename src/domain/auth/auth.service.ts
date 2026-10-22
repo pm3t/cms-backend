@@ -2,6 +2,7 @@ import { prisma } from '../../prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { verifyTOTP } from '../../lib/totp';
+import { AVAILABLE_MODULES } from '../user/modules';
 
 export class AuthService {
     async registerUser(data: { email: string; password: string; name: string; churchName?: string; tenantId: string }) {
@@ -76,10 +77,31 @@ export class AuthService {
         return { id: user.id, email: user.email, name: user.name };
     }
 
+    private extractUserPermissions(user: { isSuperAdmin: boolean; role?: { name: string; permissions?: { permission: { name: string } }[] } | null }): string[] {
+        const allModuleKeys = AVAILABLE_MODULES.map(m => m.key);
+        if (user.isSuperAdmin) {
+            return allModuleKeys;
+        }
+        if (user.role?.permissions && user.role.permissions.length > 0) {
+            return user.role.permissions.map(rp => rp.permission.name);
+        }
+        // Legacy / default users without custom permissions have full access
+        return allModuleKeys;
+    }
+
     async login(email: string, password: string, tenantId: string) {
         const user = await prisma.user.findFirst({ 
             where: { email, tenantId }, 
-            include: { tenant: true, role: true } 
+            include: { 
+                tenant: true, 
+                role: {
+                    include: {
+                        permissions: {
+                            include: { permission: true }
+                        }
+                    }
+                } 
+            } 
         });
         if (!user) throw new Error('Invalid credentials');
 
@@ -92,6 +114,7 @@ export class AuthService {
 
         const tenantName = user.tenant?.name || tenantId;
         const tokens = this.generateTokens(user.id, user.tenantId, user.roleId || '', user.name, tenantName, user.isSuperAdmin);
+        const permissions = this.extractUserPermissions(user);
         
         return {
             ...tokens,
@@ -99,8 +122,9 @@ export class AuthService {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                role: user.isSuperAdmin ? 'Super Admin' : (user.role?.name || 'User'),
-                organization_id: user.tenantId
+                role: user.isSuperAdmin ? 'Super Admin' : (user.role?.name || 'Administrator'),
+                organization_id: user.tenantId,
+                permissions
             }
         };
     }
@@ -114,7 +138,16 @@ export class AuthService {
     async verify2FA(userId: string, token: string) {
         const user = await prisma.user.findUnique({ 
             where: { id: userId }, 
-            include: { tenant: true, role: true } 
+            include: { 
+                tenant: true, 
+                role: {
+                    include: {
+                        permissions: {
+                            include: { permission: true }
+                        }
+                    }
+                } 
+            } 
         });
         if (!user || !user.totpSecret) throw new Error('2FA not configured');
 
@@ -123,6 +156,7 @@ export class AuthService {
 
         const tenantName = user.tenant?.name || user.tenantId;
         const tokens = this.generateTokens(user.id, user.tenantId, user.roleId || '', user.name, tenantName, user.isSuperAdmin);
+        const permissions = this.extractUserPermissions(user);
 
         return {
             ...tokens,
@@ -130,8 +164,9 @@ export class AuthService {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                role: user.isSuperAdmin ? 'Super Admin' : (user.role?.name || 'User'),
-                organization_id: user.tenantId
+                role: user.isSuperAdmin ? 'Super Admin' : (user.role?.name || 'Administrator'),
+                organization_id: user.tenantId,
+                permissions
             }
         };
     }
@@ -139,17 +174,27 @@ export class AuthService {
     async getUserProfile(userId: string) {
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            include: { role: true }
+            include: { 
+                role: {
+                    include: {
+                        permissions: {
+                            include: { permission: true }
+                        }
+                    }
+                } 
+            }
         });
 
         if (!user) throw new Error('User not found');
+        const permissions = this.extractUserPermissions(user);
 
         return {
             id: user.id,
             name: user.name,
             email: user.email,
-            role: user.isSuperAdmin ? 'Super Admin' : (user.role?.name || 'User'),
-            organization_id: user.tenantId
+            role: user.isSuperAdmin ? 'Super Admin' : (user.role?.name || 'Administrator'),
+            organization_id: user.tenantId,
+            permissions
         };
     }
 }

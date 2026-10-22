@@ -5,6 +5,15 @@ import { UserService } from '../../domain/user/user.service';
 const userService = new UserService();
 
 export const userController = {
+    getAvailablePermissions(req: AuthRequest, res: Response) {
+        try {
+            const modules = userService.getAvailableModules();
+            res.json(modules);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
     async listUsers(req: AuthRequest, res: Response) {
         try {
             const tenantId = req.user!.tenantId;
@@ -18,19 +27,32 @@ export const userController = {
     async createUser(req: AuthRequest, res: Response) {
         try {
             const tenantId = req.user!.tenantId;
-            const { email, name, password } = req.body;
+            const { email, name, password, modules, roleName } = req.body;
 
             if (!email || !name || !password) {
                 return res.status(400).json({ error: 'Email, nama, dan password wajib diisi.' });
             }
 
-            const user = await userService.createUser(tenantId, { email, name, password });
+            const user = await userService.createUser(tenantId, { email, name, password, modules, roleName });
             res.status(201).json(user);
         } catch (error: any) {
             // Check if it's a limit error (403) or other error
             if (error.message.includes('Limit tercapai')) {
                 return res.status(403).json({ error: error.message });
             }
+            res.status(400).json({ error: error.message });
+        }
+    },
+
+    async updateUser(req: AuthRequest, res: Response) {
+        try {
+            const tenantId = req.user!.tenantId;
+            const userId = req.params.id as string;
+            const { name, email, password, modules, roleName } = req.body;
+
+            const user = await userService.updateUser(tenantId, userId, { name, email, password, modules, roleName });
+            res.json(user);
+        } catch (error: any) {
             res.status(400).json({ error: error.message });
         }
     },
