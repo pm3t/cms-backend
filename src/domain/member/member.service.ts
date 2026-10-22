@@ -617,6 +617,14 @@ export class FamilyService {
 
         const parsed = createFamilySchema.parse({ ...data, kkjNumber });
 
+        // Unlink headOfFamilyId from any other family first to prevent unique constraint violation
+        if (parsed.headOfFamilyId) {
+            await prisma.family.updateMany({
+                where: { headOfFamilyId: parsed.headOfFamilyId },
+                data: { headOfFamilyId: null }
+            });
+        }
+
         const family = await prisma.family.create({
             data: {
                 ...parsed,
@@ -660,6 +668,12 @@ export class FamilyService {
         // Handle headOfFamily changes
         if (parsed.headOfFamilyId !== undefined && parsed.headOfFamilyId !== current.headOfFamilyId) {
             if (parsed.headOfFamilyId) {
+                // Release this member from being head of any other family to satisfy unique constraint
+                await prisma.family.updateMany({
+                    where: { headOfFamilyId: parsed.headOfFamilyId, id: { not: familyId } },
+                    data: { headOfFamilyId: null }
+                });
+
                 await prisma.member.updateMany({
                     where: { id: parsed.headOfFamilyId, tenantId },
                     data: {
@@ -761,6 +775,21 @@ export class FamilyService {
         }
 
         if (role === 'HEAD') {
+            // Unlink memberId from any other family where they might be head
+            await prisma.family.updateMany({
+                where: { headOfFamilyId: memberId, id: { not: familyId } },
+                data: { headOfFamilyId: null }
+            });
+
+            // Downgrade existing head in this family to SPOUSE if different
+            const currentFam = await prisma.family.findUnique({ where: { id: familyId } });
+            if (currentFam?.headOfFamilyId && currentFam.headOfFamilyId !== memberId) {
+                await prisma.member.updateMany({
+                    where: { id: currentFam.headOfFamilyId, familyId },
+                    data: { familyRole: 'SPOUSE' }
+                });
+            }
+
             await prisma.family.update({
                 where: { id: familyId },
                 data: { headOfFamilyId: memberId }
@@ -802,6 +831,21 @@ export class FamilyService {
         });
 
         if (role === 'HEAD') {
+            // Unlink memberId from any other family where they might be head
+            await prisma.family.updateMany({
+                where: { headOfFamilyId: memberId, id: { not: familyId } },
+                data: { headOfFamilyId: null }
+            });
+
+            // Downgrade existing head in this family to SPOUSE if different
+            const currentFam = await prisma.family.findUnique({ where: { id: familyId } });
+            if (currentFam?.headOfFamilyId && currentFam.headOfFamilyId !== memberId) {
+                await prisma.member.updateMany({
+                    where: { id: currentFam.headOfFamilyId, familyId },
+                    data: { familyRole: 'SPOUSE' }
+                });
+            }
+
             await prisma.family.update({
                 where: { id: familyId },
                 data: { headOfFamilyId: memberId }

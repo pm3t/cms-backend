@@ -353,6 +353,12 @@ export class MobileService {
   }
 
   async createFamily(memberId: string, tenantId: string, name: string) {
+    // Release memberId from any other family where they might be head
+    await prisma.family.updateMany({
+      where: { headOfFamilyId: memberId },
+      data: { headOfFamilyId: null }
+    });
+
     const family = await prisma.family.create({
       data: {
         name,
@@ -363,7 +369,7 @@ export class MobileService {
 
     await prisma.member.update({
       where: { id: memberId },
-      data: { familyId: family.id }
+      data: { familyId: family.id, familyRole: 'HEAD' }
     });
 
     return family;
