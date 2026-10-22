@@ -93,6 +93,7 @@ model Tenant {
   bibleReadingPlans      BibleReadingPlan[]
   bibleQuestions         BibleQuestion[]
   memberGameScores       MemberGameScore[]
+  bibleWordleDays        BibleWordleDay[]
 }
 
 model Branch {
@@ -344,6 +345,7 @@ model Member {
   bibleReadingProgresses MemberReadingProgress[]
   bibleGameAttempts      BibleGameAttempt[]
   memberGameScore        MemberGameScore?
+  wordleAttempts         BibleWordleAttempt[]
   sentFamilyInvitations     FamilyInvitation[] @relation("FamilyInviter")
   receivedFamilyInvitations FamilyInvitation[] @relation("FamilyInvitee")
 
@@ -1611,10 +1613,12 @@ model BibleQuestion {
   tenantId         String
   tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   type             String            // "QUIZ", "SCRAMBLE", "WORD_SEARCH", "GUESS"
+  category         String?           @default("UMUM") // "TOKOH", "MUKJIZAT", "KISAH_RASUL", "AMSAL", "INJIL", "UMUM"
   question         String            @db.Text
-  options          Json?             // Pilihan ganda ["A", "B", "C"] atau daftar kata untuk Word Search
+  options          Json?             // Pilihan ganda ["A", "B", "C", "D"]
   correctAnswer    String            // Jawaban benar
   passageReference String?           // Referensi ayat (misal: Yohanes 3:16)
+  explanation      String?           @db.Text // Pembahasan & hikmat firman saat dijawab
   hint             String?           @db.Text
   points           Int               @default(10)
   activeDate       DateTime?         // Ditampilkan pada tanggal tertentu (Kuis Harian)
@@ -1657,5 +1661,39 @@ model MemberGameScore {
   updatedAt     DateTime  @updatedAt
 
   @@index([tenantId])
+}
+
+model BibleWordleDay {
+  id                String               @id @default(uuid())
+  tenantId          String?
+  tenant            Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dateStr           String               // YYYY-MM-DD
+  word              String               // Kata Alkitab (5-6 huruf, kapital: KASIH)
+  clue              String?              // Petunjuk opsional
+  passageReference  String               // Yohanes 13:34
+  passageText       String               @db.Text // Teks firman lengkap
+  devotionalSnippet String               @db.Text // Pesan renungan
+  points            Int                  @default(30)
+  createdAt         DateTime             @default(now())
+
+  attempts          BibleWordleAttempt[]
+
+  @@unique([tenantId, dateStr])
+  @@index([dateStr])
+}
+
+model BibleWordleAttempt {
+  id           String         @id @default(uuid())
+  wordleDayId  String
+  wordleDay    BibleWordleDay @relation(fields: [wordleDayId], references: [id], onDelete: Cascade)
+  memberId     String
+  member       Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  guesses      Json           // Array of guesses: ["KUDUS", "KASIH"]
+  isSolved     Boolean
+  pointsEarned Int            @default(0)
+  createdAt    DateTime       @default(now())
+
+  @@unique([memberId, wordleDayId])
+  @@index([memberId])
 }
 
