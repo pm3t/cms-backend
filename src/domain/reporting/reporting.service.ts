@@ -199,38 +199,76 @@ export class ReportingService {
 
   // --- Advanced Analytics (Fase 6 Part 2) ---
 
-  async getGrowthAnalytics(tenantId: string) {
+  async getGrowthAnalytics(tenantId: string, options?: { excludeImported?: boolean }) {
+    const excludeImported = options?.excludeImported ?? true;
+
     const oneYearAgo = new Date();
     oneYearAgo.setMonth(oneYearAgo.getMonth() - 11);
     oneYearAgo.setDate(1); // Start of month 12 months ago
 
-    const members = await prisma.member.findMany({
-      where: { tenantId, createdAt: { gte: oneYearAgo } },
-      select: { createdAt: true }
+    const totalImported = await prisma.member.count({
+      where: { tenantId, isImported: true }
     });
 
-    const monthlyData: Record<string, number> = {};
+    const priorMembers = await prisma.member.count({
+      where: {
+        tenantId,
+        createdAt: { lt: oneYearAgo },
+        ...(excludeImported ? { isImported: false } : {})
+      }
+    });
+
+    const members = await prisma.member.findMany({
+      where: { tenantId, createdAt: { gte: oneYearAgo } },
+      select: { createdAt: true, isImported: true }
+    });
+
+    const monthlyOrganic: Record<string, number> = {};
+    const monthlyImported: Record<string, number> = {};
     for (let i = 0; i < 12; i++) {
       const d = new Date(oneYearAgo.getFullYear(), oneYearAgo.getMonth() + i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthlyData[key] = 0;
+      monthlyOrganic[key] = 0;
+      monthlyImported[key] = 0;
     }
 
     members.forEach(m => {
       const key = `${m.createdAt.getFullYear()}-${String(m.createdAt.getMonth() + 1).padStart(2, '0')}`;
-      if (monthlyData[key] !== undefined) {
-        monthlyData[key]++;
+      if (m.isImported) {
+        if (monthlyImported[key] !== undefined) monthlyImported[key]++;
+      } else {
+        if (monthlyOrganic[key] !== undefined) monthlyOrganic[key]++;
       }
     });
 
-    const trend = Object.entries(monthlyData).map(([month, newMembers]) => ({ month, newMembers }));
+    let runningCumulative = priorMembers;
+    const trend = Object.keys(monthlyOrganic).map(month => {
+      const org = monthlyOrganic[month] || 0;
+      const imp = monthlyImported[month] || 0;
+      const count = excludeImported ? org : (org + imp);
+      runningCumulative += count;
+
+      return {
+        month,
+        newMembers: count,
+        organicMembers: org,
+        importedMembers: imp,
+        cumulativeTotal: runningCumulative
+      };
+    });
     
     // MoM Calculation
     const currentMonthData = trend[trend.length - 1].newMembers;
     const lastMonthData = trend[trend.length - 2].newMembers;
     const momGrowth = lastMonthData === 0 ? (currentMonthData > 0 ? 100 : 0) : ((currentMonthData - lastMonthData) / lastMonthData) * 100;
 
-    return { trend, currentMonthNew: currentMonthData, momGrowth };
+    return { 
+      trend, 
+      currentMonthNew: currentMonthData, 
+      momGrowth,
+      totalImported,
+      excludeImported
+    };
   }
 
   async getEngagementMetrics(tenantId: string) {
@@ -362,7 +400,8 @@ export class ReportingService {
     };
   }
 
-  async getBenchmarking(tenantId: string) {
+  async getBenchmarking(tenantId: string, options?: { excludeImported?: boolean }) {
+    const excludeImported = options?.excludeImported ?? true;
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -371,9 +410,12 @@ export class ReportingService {
     const currentMonthAttendance = await prisma.attendanceRecord.count({ where: { tenantId, createdAt: { gte: currentMonthStart } } });
     const lastMonthAttendance = await prisma.attendanceRecord.count({ where: { tenantId, createdAt: { gte: lastMonthStart, lt: currentMonthStart } } });
 
-    // Growth
-    const currentMonthMembers = await prisma.member.count({ where: { tenantId, createdAt: { gte: currentMonthStart } } });
-    const lastMonthMembers = await prisma.member.count({ where: { tenantId, createdAt: { gte: lastMonthStart, lt: currentMonthStart } } });
+    // Growth (Organic vs Total)
+    const growthFilter: any = { tenantId };
+    if (excludeImported) growthFilter.isImported = false;
+
+    const currentMonthMembers = await prisma.member.count({ where: { ...growthFilter, createdAt: { gte: currentMonthStart } } });
+    const lastMonthMembers = await prisma.member.count({ where: { ...growthFilter, createdAt: { gte: lastMonthStart, lt: currentMonthStart } } });
 
     // Finance (Giving)
     const currentMonthGivingData = await prisma.financialRecord.aggregate({

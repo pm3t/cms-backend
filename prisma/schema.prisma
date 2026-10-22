@@ -42,6 +42,7 @@ model Tenant {
   branches          Branch[]
   members           Member[]
   families          Family[]
+  familyInvitations FamilyInvitation[]
   announcements     Announcement[]
   commTemplates     CommunicationTemplate[]
   commLogs          CommunicationLog[]
@@ -210,6 +211,7 @@ model Family {
   headOfFamily   Member?   @relation("FamilyHead", fields: [headOfFamilyId], references: [id], onDelete: SetNull)
 
   members Member[] @relation("FamilyMembers")
+  invitations FamilyInvitation[]
 
   // Additional KKJ Details matching physical KKJ
   address        String?
@@ -232,6 +234,33 @@ model Family {
   updatedAt DateTime @updatedAt
 
   @@unique([tenantId, kkjNumber])
+}
+
+enum FamilyInvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+model FamilyInvitation {
+  id          String                 @id @default(uuid())
+  tenantId    String
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  familyId    String
+  family      Family                 @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  invitedById String
+  inviter     Member                 @relation("FamilyInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+  memberId    String
+  member      Member                 @relation("FamilyInvitee", fields: [memberId], references: [id], onDelete: Cascade)
+  familyRole  String?                // "SPOUSE", "CHILD", "OTHER"
+  relation    String?                // e.g. "Istri", "Anak", "Orang Tua"
+  status      FamilyInvitationStatus @default(PENDING)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([memberId, status])
+  @@index([familyId])
 }
 
 model Member {
@@ -258,7 +287,8 @@ model Member {
   category MemberCategory   @default(ADULT)
 
   // Privacy configuration (e.g., hidden from public member directory)
-  isPrivate Boolean @default(false)
+  isPrivate  Boolean @default(false)
+  isImported Boolean @default(false)
 
   // Mobile App fields
   passwordHash    String?
@@ -314,6 +344,8 @@ model Member {
   bibleReadingProgresses MemberReadingProgress[]
   bibleGameAttempts      BibleGameAttempt[]
   memberGameScore        MemberGameScore?
+  sentFamilyInvitations     FamilyInvitation[] @relation("FamilyInviter")
+  receivedFamilyInvitations FamilyInvitation[] @relation("FamilyInvitee")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

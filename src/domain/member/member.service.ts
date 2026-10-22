@@ -428,6 +428,7 @@ export class MemberService {
                             category: finalCat,
                             status: finalStatus,
                             passwordHash: defaultPasswordHash,
+                            isImported: true,
                         }
                     });
                 }

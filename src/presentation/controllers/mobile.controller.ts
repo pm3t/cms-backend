@@ -133,6 +133,33 @@ export const mobileController = {
     catch (e: any) { res.status(400).json({ error: e.message }); }
   },
 
+  async getFamilyInvitations(req: any, res: Response) {
+    try { res.json(await mobileService.getFamilyInvitations(req.user.memberId)); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async searchMembersToInvite(req: any, res: Response) {
+    try { 
+      const query = (req.query.q as string) || '';
+      res.json(await mobileService.searchMembersToInvite(req.user.tenantId, req.user.memberId, query)); 
+    }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async inviteFamilyMember(req: any, res: Response) {
+    try { 
+      res.status(201).json(await mobileService.inviteFamilyMember(req.user.tenantId, req.user.memberId, req.body)); 
+    }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
+  async respondToInvitation(req: any, res: Response) {
+    try { 
+      res.json(await mobileService.respondToInvitation(req.user.memberId, req.params.id, req.body.action)); 
+    }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
+  },
+
   async addSacrament(req: any, res: Response) {
     try { res.status(201).json(await mobileService.addSacrament(req.user.memberId, req.body)); }
     catch (e: any) { res.status(400).json({ error: e.message }); }

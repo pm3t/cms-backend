@@ -153,7 +153,14 @@ export class MobileService {
         family: {
           include: {
             members: {
-              select: { id: true, firstName: true, lastName: true }
+              select: { 
+                id: true, 
+                firstName: true, 
+                lastName: true,
+                familyRole: true,
+                familyRelation: true,
+                photoUrl: true
+              }
             }
           }
         },
@@ -353,6 +360,14 @@ export class MobileService {
   }
 
   async createFamily(memberId: string, tenantId: string, name: string) {
+    if (!name || !name.trim()) throw new Error('Nama keluarga wajib diisi.');
+
+    // Check if member already in a family
+    const existing = await prisma.member.findUnique({ where: { id: memberId } });
+    if (existing?.familyId) {
+      throw new Error('Anda sudah terdaftar dalam keluarga. Keluar dari keluarga saat ini terlebih dahulu jika ingin membuat keluarga baru.');
+    }
+
     // Release memberId from any other family where they might be head
     await prisma.family.updateMany({
       where: { headOfFamilyId: memberId },
@@ -361,7 +376,7 @@ export class MobileService {
 
     const family = await prisma.family.create({
       data: {
-        name,
+        name: name.trim(),
         tenantId,
         headOfFamilyId: memberId
       }
@@ -369,7 +384,11 @@ export class MobileService {
 
     await prisma.member.update({
       where: { id: memberId },
-      data: { familyId: family.id, familyRole: 'HEAD' }
+      data: { 
+        familyId: family.id, 
+        familyRole: 'HEAD',
+        familyRelation: 'Kepala Keluarga' 
+      }
     });
 
     return family;
@@ -383,10 +402,199 @@ export class MobileService {
   }
 
   async leaveFamily(memberId: string) {
-    return prisma.member.update({
+    const member = await prisma.member.findUnique({
       where: { id: memberId },
-      data: { familyId: null }
+      include: { 
+        family: { 
+          include: { members: true } 
+        } 
+      }
     });
+
+    if (!member || !member.familyId) {
+      throw new Error('Anda belum terdaftar dalam keluarga manapun.');
+    }
+
+    const isHead = member.family?.headOfFamilyId === memberId || member.familyRole === 'HEAD';
+    const otherMembers = (member.family?.members || []).filter(m => m.id !== memberId);
+
+    if (isHead) {
+      if (otherMembers.length === 0) {
+        // Sole member: remove family
+        await prisma.member.update({
+          where: { id: memberId },
+          data: { familyId: null, familyRole: null, familyRelation: null }
+        });
+        await prisma.family.delete({
+          where: { id: member.familyId }
+        });
+        return { success: true, message: 'Berhasil keluar dan membubarkan keluarga' };
+      } else {
+        // Transfer head of family to next adult or spouse
+        const nextHead = otherMembers.find(m => m.familyRole === 'SPOUSE') || otherMembers[0];
+        await prisma.family.update({
+          where: { id: member.familyId },
+          data: { headOfFamilyId: nextHead.id }
+        });
+        await prisma.member.update({
+          where: { id: nextHead.id },
+          data: { familyRole: 'HEAD', familyRelation: 'Kepala Keluarga' }
+        });
+      }
+    }
+
+    await prisma.member.update({
+      where: { id: memberId },
+      data: { familyId: null, familyRole: null, familyRelation: null }
+    });
+
+    return { success: true, message: 'Berhasil keluar dari keluarga' };
+  }
+
+  async getFamilyInvitations(memberId: string) {
+    return prisma.familyInvitation.findMany({
+      where: { memberId, status: 'PENDING' },
+      include: {
+        family: {
+          select: { id: true, name: true, kkjNumber: true }
+        },
+        inviter: {
+          select: { id: true, firstName: true, lastName: true, phone: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async searchMembersToInvite(tenantId: string, currentMemberId: string, query: string) {
+    const q = query?.trim();
+    if (!q || q.length < 2) return [];
+
+    return prisma.member.findMany({
+      where: {
+        tenantId,
+        id: { not: currentMemberId },
+        familyId: null, // Only members without family
+        OR: [
+          { firstName: { contains: q, mode: 'insensitive' } },
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { phone: { contains: q } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ]
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        email: true,
+        photoUrl: true,
+        gender: true
+      },
+      take: 10
+    });
+  }
+
+  async inviteFamilyMember(tenantId: string, inviterMemberId: string, data: { targetMemberId: string; familyRole?: string; relation?: string }) {
+    if (!data.targetMemberId) throw new Error('Pilih jemaat yang ingin diundang.');
+
+    const inviter = await prisma.member.findUnique({
+      where: { id: inviterMemberId },
+      include: { family: true }
+    });
+
+    if (!inviter?.familyId || !inviter.family) {
+      throw new Error('Anda belum memiliki keluarga. Buat keluarga terlebih dahulu.');
+    }
+    if (inviter.family.headOfFamilyId !== inviterMemberId && inviter.familyRole !== 'HEAD') {
+      throw new Error('Hanya Kepala Keluarga yang dapat mengundang anggota keluarga.');
+    }
+
+    const target = await prisma.member.findUnique({
+      where: { id: data.targetMemberId }
+    });
+    if (!target || target.tenantId !== tenantId) {
+      throw new Error('Jemaat tidak ditemukan.');
+    }
+    if (target.familyId) {
+      throw new Error('Jemaat ini sudah terdaftar dalam keluarga lain.');
+    }
+
+    const existingInvitation = await prisma.familyInvitation.findFirst({
+      where: {
+        familyId: inviter.familyId,
+        memberId: data.targetMemberId,
+        status: 'PENDING'
+      }
+    });
+    if (existingInvitation) {
+      throw new Error('Undangan sudah dikirimkan kepada jemaat ini dan sedang menunggu persetujuan.');
+    }
+
+    const invitation = await prisma.familyInvitation.create({
+      data: {
+        tenantId,
+        familyId: inviter.familyId,
+        invitedById: inviterMemberId,
+        memberId: data.targetMemberId,
+        familyRole: data.familyRole || 'CHILD',
+        relation: data.relation || 'Anggota'
+      },
+      include: {
+        member: { select: { firstName: true, lastName: true } },
+        family: { select: { name: true } }
+      }
+    });
+
+    return invitation;
+  }
+
+  async respondToInvitation(memberId: string, invitationId: string, action: 'ACCEPT' | 'REJECT') {
+    const invitation = await prisma.familyInvitation.findUnique({
+      where: { id: invitationId },
+      include: { family: true }
+    });
+
+    if (!invitation || invitation.memberId !== memberId) {
+      throw new Error('Undangan tidak ditemukan atau tidak valid.');
+    }
+    if (invitation.status !== 'PENDING') {
+      throw new Error('Undangan ini sudah tidak aktif.');
+    }
+
+    if (action === 'REJECT') {
+      return prisma.familyInvitation.update({
+        where: { id: invitationId },
+        data: { status: 'REJECTED' }
+      });
+    }
+
+    // ACCEPT:
+    await prisma.member.update({
+      where: { id: memberId },
+      data: {
+        familyId: invitation.familyId,
+        familyRole: invitation.familyRole || 'CHILD',
+        familyRelation: invitation.relation || 'Anggota'
+      }
+    });
+
+    const updated = await prisma.familyInvitation.update({
+      where: { id: invitationId },
+      data: { status: 'ACCEPTED' }
+    });
+
+    // Cancel other pending invitations for this member
+    await prisma.familyInvitation.updateMany({
+      where: {
+        memberId,
+        status: 'PENDING',
+        id: { not: invitationId }
+      },
+      data: { status: 'CANCELLED' }
+    });
+
+    return updated;
   }
 
   async addSacrament(memberId: string, data: any) {

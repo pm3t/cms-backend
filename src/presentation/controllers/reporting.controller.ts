@@ -27,7 +27,10 @@ export const reportingController = {
 
   // --- Advanced Analytics ---
   async getGrowthAnalytics(req: any, res: Response) {
-    try { res.json(await reportingService.getGrowthAnalytics(req.user.tenantId)); }
+    try { 
+      const excludeImported = req.query.includeImported === 'true' ? false : (req.query.excludeImported !== 'false');
+      res.json(await reportingService.getGrowthAnalytics(req.user.tenantId, { excludeImported })); 
+    }
     catch (e: any) { res.status(400).json({ error: e.message }); }
   },
   async getEngagementMetrics(req: any, res: Response) {
@@ -39,7 +42,10 @@ export const reportingController = {
     catch (e: any) { res.status(400).json({ error: e.message }); }
   },
   async getBenchmarking(req: any, res: Response) {
-    try { res.json(await reportingService.getBenchmarking(req.user.tenantId)); }
+    try { 
+      const excludeImported = req.query.includeImported === 'true' ? false : (req.query.excludeImported !== 'false');
+      res.json(await reportingService.getBenchmarking(req.user.tenantId, { excludeImported })); 
+    }
     catch (e: any) { res.status(400).json({ error: e.message }); }
   },
 
