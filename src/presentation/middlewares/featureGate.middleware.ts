@@ -5,11 +5,21 @@ import { subscriptionService } from '../../domain/subscription/subscription.serv
 export const FeatureGate = (featureKey: string) => {
     return async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
+            // 0. Global bypass switch (useful for staging / preview / debugging)
+            if (process.env.DISABLE_FEATURE_GATE === 'true') {
+                return next();
+            }
+
             if (!req.user || !req.user.tenantId) {
                 return res.status(401).json({ error: 'Unauthorized: Tenant context is missing.' });
             }
 
-            const { tenantId } = req.user;
+            const { tenantId, isSuperAdmin } = req.user;
+
+            // Super Admin or Platform Administrator has unrestricted access across all features
+            if (isSuperAdmin || tenantId === 'platform-admin') {
+                return next();
+            }
 
             // 1. Check for suspension or expiration first
             const isSuspended = await subscriptionService.getSuspensionStatus(tenantId);
@@ -44,8 +54,16 @@ export const FeatureGate = (featureKey: string) => {
  */
 export const SubscriptionGate = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
+        if (process.env.DISABLE_FEATURE_GATE === 'true') {
+            return next();
+        }
+
         if (!req.user || !req.user.tenantId) {
             return res.status(401).json({ error: 'Unauthorized: Tenant context is missing.' });
+        }
+
+        if (req.user.isSuperAdmin || req.user.tenantId === 'platform-admin') {
+            return next();
         }
 
         const isSuspended = await subscriptionService.getSuspensionStatus(req.user.tenantId);

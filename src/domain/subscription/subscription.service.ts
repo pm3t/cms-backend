@@ -6,7 +6,13 @@ export class SubscriptionService {
      * Fallback to 'Free' plan if no active subscription exists.
      */
     async getActivePlan(tenantId: string) {
-        // Find the active subscription
+        // Platform admin or when feature gate is disabled always gets full Enterprise
+        if (tenantId === 'platform-admin' || process.env.DISABLE_FEATURE_GATE === 'true') {
+            const enterprisePlan = await prisma.plan.findFirst({ where: { name: 'Enterprise' } });
+            if (enterprisePlan) return enterprisePlan;
+        }
+
+        // 1. Find the active subscription with valid endDate
         const subscription = await prisma.subscription.findFirst({
             where: {
                 tenantId,
@@ -25,7 +31,27 @@ export class SubscriptionService {
             return subscription.plan;
         }
 
-        // If no active subscription, return the default Free plan
+        // 2. Failsafe: Check if tenant has an active/trialing subscription that hasn't been explicitly suspended or cancelled
+        const existingSub = await prisma.subscription.findFirst({
+            where: {
+                tenantId,
+                status: { in: ['active', 'trialing'] },
+                suspendedAt: null,
+                cancelledAt: null,
+            },
+            include: {
+                plan: true
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        if (existingSub && existingSub.plan) {
+            return existingSub.plan;
+        }
+
+        // 3. Fallback to default Free plan
         const freePlan = await prisma.plan.findFirst({
             where: { name: 'Free' }
         });

@@ -91,7 +91,7 @@ export class AuthService {
         }
 
         const tenantName = user.tenant?.name || tenantId;
-        const tokens = this.generateTokens(user.id, user.tenantId, user.roleId || '', user.name, tenantName);
+        const tokens = this.generateTokens(user.id, user.tenantId, user.roleId || '', user.name, tenantName, user.isSuperAdmin);
         
         return {
             ...tokens,
@@ -105,9 +105,9 @@ export class AuthService {
         };
     }
 
-    generateTokens(userId: string, tenantId: string, roleId: string, userName: string, tenantName: string) {
+    generateTokens(userId: string, tenantId: string, roleId: string, userName: string, tenantName: string, isSuperAdmin: boolean = false) {
         const secret = process.env.JWT_SECRET || 'secret';
-        const token = jwt.sign({ userId, tenantId, roleId, userName, churchName: tenantName }, secret, { expiresIn: '8h' });
+        const token = jwt.sign({ userId, tenantId, roleId, userName, churchName: tenantName, isSuperAdmin }, secret, { expiresIn: '8h' });
         return { token };
     }
 
@@ -122,7 +122,7 @@ export class AuthService {
         if (!isValid) throw new Error('Invalid token');
 
         const tenantName = user.tenant?.name || user.tenantId;
-        const tokens = this.generateTokens(user.id, user.tenantId, user.roleId || '', user.name, tenantName);
+        const tokens = this.generateTokens(user.id, user.tenantId, user.roleId || '', user.name, tenantName, user.isSuperAdmin);
 
         return {
             ...tokens,

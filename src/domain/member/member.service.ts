@@ -2,6 +2,7 @@ import { prisma } from '../../prisma';
 import { z } from 'zod';
 import { MembershipStatus, MemberCategory } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { canonicalPhone, getPhoneLookupVariants } from '../../lib/phone';
 
 const safeDate = z.preprocess((arg) => {
     if (!arg || arg === '') return null;
@@ -136,6 +137,8 @@ export class MemberService {
         
         const finalEmail = parsed.email || null;
         const finalReference = parsed.referenceNumber || null;
+        const finalPhone = parsed.phone ? canonicalPhone(parsed.phone) : null;
+        const phoneVariants = parsed.phone ? getPhoneLookupVariants(parsed.phone) : [];
 
         if (finalEmail) {
             const existingEmail = await prisma.member.findFirst({
@@ -151,11 +154,23 @@ export class MemberService {
             if (existingRef) throw new Error('Data jemaat dengan Nomor Induk ini sudah terdaftar');
         }
 
+        if (phoneVariants.length > 0) {
+            const existingPhone = await prisma.member.findFirst({
+                where: { tenantId, phone: { in: phoneVariants } }
+            });
+            if (existingPhone) {
+                throw new Error(
+                    `Data jemaat dengan nomor HP ${parsed.phone} sudah terdaftar atas nama ${existingPhone.firstName} ${existingPhone.lastName || ''}`.trim()
+                );
+            }
+        }
+
         const category = await getMemberCategory(tenantId, parsed.birthDate, parsed.category);
         return prisma.member.create({
             data: {
                 ...parsed,
                 email: finalEmail,
+                phone: finalPhone || parsed.phone || null,
                 referenceNumber: finalReference,
                 category,
                 tenantId
@@ -172,6 +187,7 @@ export class MemberService {
 
         const finalEmail = parsed.email !== undefined ? (parsed.email || null) : currentMember.email;
         const finalReference = parsed.referenceNumber !== undefined ? (parsed.referenceNumber || null) : currentMember.referenceNumber;
+        const finalPhone = parsed.phone !== undefined ? (parsed.phone ? canonicalPhone(parsed.phone) : null) : currentMember.phone;
 
         if (finalEmail && finalEmail !== currentMember.email) {
             const existingEmail = await prisma.member.findFirst({
@@ -187,6 +203,20 @@ export class MemberService {
             if (existingRef) throw new Error('Data jemaat dengan Nomor Induk ini sudah terdaftar');
         }
 
+        if (parsed.phone && parsed.phone !== currentMember.phone) {
+            const phoneVariants = getPhoneLookupVariants(parsed.phone);
+            if (phoneVariants.length > 0) {
+                const existingPhone = await prisma.member.findFirst({
+                    where: { tenantId, phone: { in: phoneVariants }, id: { not: memberId } }
+                });
+                if (existingPhone) {
+                    throw new Error(
+                        `Data jemaat dengan nomor HP ${parsed.phone} sudah digunakan oleh jemaat lain (${existingPhone.firstName} ${existingPhone.lastName || ''})`.trim()
+                    );
+                }
+            }
+        }
+
         let category = parsed.category;
         if (parsed.birthDate !== undefined) {
             category = await getMemberCategory(tenantId, parsed.birthDate, parsed.category || currentMember.category);
@@ -199,6 +229,7 @@ export class MemberService {
             data: {
                 ...parsed,
                 email: finalEmail,
+                phone: finalPhone || parsed.phone || null,
                 referenceNumber: finalReference,
                 ...(category ? { category } : {})
             }
@@ -263,41 +294,74 @@ export class MemberService {
             const finalCat = await getMemberCategory(tenantId, birthDate, initialCat);
             const address = raw.address || null;
 
+            const rawPhone = phone ? phone.toString().trim() : null;
+            const normalizedPhone = rawPhone ? canonicalPhone(rawPhone) : null;
+            const phoneVariants = rawPhone ? getPhoneLookupVariants(rawPhone) : [];
+
             try {
                 let existingMember = null;
+
+                // Priority 1: Match by Email
                 if (email) {
-                    existingMember = await prisma.member.findFirst({ where: { tenantId, email } });
+                    existingMember = await prisma.member.findFirst({
+                        where: { tenantId, email: { equals: email.trim().toLowerCase(), mode: 'insensitive' } }
+                    });
                 }
+
+                // Priority 2: Match by Reference Number / Nomor Induk
                 if (!existingMember && referenceNumber) {
-                    existingMember = await prisma.member.findFirst({ where: { tenantId, referenceNumber } });
+                    existingMember = await prisma.member.findFirst({
+                        where: { tenantId, referenceNumber: referenceNumber.trim() }
+                    });
+                }
+
+                // Priority 3: Match by Phone (checks variants e.g. 08..., +62..., 62...)
+                if (!existingMember && phoneVariants.length > 0) {
+                    existingMember = await prisma.member.findFirst({
+                        where: { tenantId, phone: { in: phoneVariants } }
+                    });
+                }
+
+                // Priority 4: Match by Full Name + Birth Date
+                if (!existingMember && raw.firstName && birthDate) {
+                    existingMember = await prisma.member.findFirst({
+                        where: {
+                            tenantId,
+                            firstName: { equals: raw.firstName.trim(), mode: 'insensitive' },
+                            birthDate: birthDate,
+                        }
+                    });
                 }
 
                 if (existingMember) {
+                    // Update existing member record without overwriting good data with blanks
                     await prisma.member.update({
                         where: { id: existingMember.id },
                         data: {
-                            firstName: raw.firstName || existingMember.firstName,
-                            lastName: raw.lastName || existingMember.lastName,
+                            firstName: raw.firstName?.trim() || existingMember.firstName,
+                            lastName: raw.lastName !== undefined ? raw.lastName?.trim() : existingMember.lastName,
                             gender: gender || existingMember.gender,
-                            phone: phone || existingMember.phone,
+                            phone: normalizedPhone || existingMember.phone,
                             birthDate: birthDate || existingMember.birthDate,
                             address: address || existingMember.address,
+                            referenceNumber: referenceNumber || existingMember.referenceNumber,
                             category: finalCat,
                             status: finalStatus
                         }
                     });
                 } else {
+                    // Create new member
                     await prisma.member.create({
                         data: {
                             tenantId,
-                            firstName: raw.firstName || 'Unknown',
-                            lastName: raw.lastName || '',
+                            firstName: raw.firstName?.trim() || 'Unknown',
+                            lastName: raw.lastName?.trim() || '',
                             gender,
-                            email,
-                            phone,
+                            email: email ? email.trim().toLowerCase() : null,
+                            phone: normalizedPhone || rawPhone || null,
                             birthDate,
                             address,
-                            referenceNumber,
+                            referenceNumber: referenceNumber?.trim() || null,
                             category: finalCat,
                             status: finalStatus
                         }

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import nodemailer from 'nodemailer';
 import { FacilityService } from '../facility/facility.service';
 import { CommunicationService } from '../communication/communication.service';
+import { canonicalPhone, getPhoneLookupVariants } from '../../lib/phone';
 
 const commService = new CommunicationService();
 
@@ -13,70 +14,123 @@ const jwtSecret = process.env.JWT_SECRET || 'secret';
 const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
-  firstName: z.string(),
+  firstName: z.string().min(1, 'Nama depan wajib diisi'),
   lastName: z.string().optional(),
   phone: z.string().optional(),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
+  email: z.string().min(1, 'Email atau No. HP wajib diisi'),
+  password: z.string().min(1, 'Password wajib diisi'),
   pushToken: z.string().optional(),
 });
 
 export class MobileService {
   async register(tenantId: string, data: any) {
     const parsed = registerSchema.parse(data);
-    
-    // Check if member exists
-    const existing = await prisma.member.findFirst({
-      where: { tenantId, email: parsed.email }
+    const emailLower = parsed.email.trim().toLowerCase();
+    const phoneVariants = parsed.phone ? getPhoneLookupVariants(parsed.phone) : [];
+    const normalizedPhone = parsed.phone ? canonicalPhone(parsed.phone) : null;
+
+    // 1. Check if a member exists with this email
+    const existingByEmail = await prisma.member.findFirst({
+      where: { tenantId, email: { equals: emailLower, mode: 'insensitive' } }
     });
 
+    // 2. Check if a member exists with this phone number
+    let existingByPhone = null;
+    if (phoneVariants.length > 0) {
+      existingByPhone = await prisma.member.findFirst({
+        where: { tenantId, phone: { in: phoneVariants } }
+      });
+    }
+
+    // Safety check: Conflict where email matches Member A and phone matches Member B
+    if (existingByEmail && existingByPhone && existingByEmail.id !== existingByPhone.id) {
+      throw new Error(
+        'Email dan Nomor HP ini terhubung dengan 2 data jemaat yang berbeda di sistem gereja. Silakan hubungi admin gereja untuk sinkronisasi.'
+      );
+    }
+
+    // Target member to connect with (either matching email or matching phone)
+    const targetMember = existingByEmail || existingByPhone;
     const passwordHash = await bcrypt.hash(parsed.password, 10);
 
     let member;
-    if (existing) {
-      // Claim account
-      if (existing.passwordHash) throw new Error('Akun ini sudah terdaftar');
+    let isClaimed = false;
+
+    if (targetMember) {
+      // If member already has a passwordHash, they are already registered
+      if (targetMember.passwordHash) {
+        throw new Error('Akun dengan email atau nomor HP ini sudah terdaftar. Silakan langsung login.');
+      }
+
+      // KLAIM AKUN: Jemaat sudah diinput sebelumnya oleh Admin gereja
+      // Hubungkan akun mobile dengan data jemaat yang ada tanpa membuat duplikat
       member = await prisma.member.update({
-        where: { id: existing.id },
-        data: { passwordHash }
+        where: { id: targetMember.id },
+        data: {
+          email: targetMember.email || emailLower,
+          phone: targetMember.phone || normalizedPhone || parsed.phone,
+          passwordHash,
+          firstName: targetMember.firstName || parsed.firstName,
+          lastName: targetMember.lastName || parsed.lastName || null,
+        }
       });
+      isClaimed = true;
+
+      prisma.memberActivityLog.create({
+        data: { tenantId, memberId: member.id, action: 'CLAIM_ACCOUNT', device: 'MOBILE' }
+      }).catch(err => console.error('Failed to log mobile activity:', err));
     } else {
-      // Create new member
+      // BUAT BARU: Jemaat baru / belum pernah diinput admin
       member = await prisma.member.create({
         data: {
           tenantId,
-          email: parsed.email,
+          email: emailLower,
           firstName: parsed.firstName,
-          lastName: parsed.lastName,
-          phone: parsed.phone,
-          passwordHash
+          lastName: parsed.lastName || '',
+          phone: normalizedPhone || parsed.phone || null,
+          passwordHash,
+          status: 'ACTIVE',
         }
       });
+
+      prisma.memberActivityLog.create({
+        data: { tenantId, memberId: member.id, action: 'REGISTER_ACCOUNT', device: 'MOBILE' }
+      }).catch(err => console.error('Failed to log mobile activity:', err));
     }
 
     const token = jwt.sign({ memberId: member.id, tenantId }, jwtSecret, { expiresIn: '30d' });
 
-    prisma.memberActivityLog.create({
-      data: { tenantId, memberId: member.id, action: 'REGISTER_ACCOUNT', device: 'MOBILE' }
-    }).catch(err => console.error('Failed to log mobile activity:', err));
-
-    return { token, member: this.excludeHash(member) };
+    return { 
+      token, 
+      member: this.excludeHash(member),
+      isClaimed 
+    };
   }
 
   async login(tenantId: string, data: any) {
     const parsed = loginSchema.parse(data);
+    const rawInput = parsed.email.trim();
+    const emailLower = rawInput.toLowerCase();
+    const phoneVariants = getPhoneLookupVariants(rawInput);
 
+    // Support logging in with either Email or Phone Number
     const member = await prisma.member.findFirst({
-      where: { tenantId, email: parsed.email }
+      where: {
+        tenantId,
+        OR: [
+          { email: { equals: emailLower, mode: 'insensitive' } },
+          ...(phoneVariants.length > 0 ? [{ phone: { in: phoneVariants } }] : []),
+        ],
+      },
     });
 
-    if (!member || !member.passwordHash) throw new Error('Email atau kata sandi salah');
+    if (!member || !member.passwordHash) throw new Error('Email/No. HP atau kata sandi salah');
 
     const valid = await bcrypt.compare(parsed.password, member.passwordHash);
-    if (!valid) throw new Error('Email atau kata sandi salah');
+    if (!valid) throw new Error('Email/No. HP atau kata sandi salah');
 
     if (parsed.pushToken) {
       await prisma.member.update({ where: { id: member.id }, data: { pushToken: parsed.pushToken } });

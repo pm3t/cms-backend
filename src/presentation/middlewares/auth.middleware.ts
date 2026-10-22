@@ -6,6 +6,7 @@ export interface AuthRequest extends Request {
         userId: string;
         tenantId: string;
         roleId?: string;
+        isSuperAdmin?: boolean;
     };
 }
 
