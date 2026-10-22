@@ -138,14 +138,6 @@ export const mobileController = {
     catch (e: any) { res.status(400).json({ error: e.message }); }
   },
 
-  async searchMembersToInvite(req: any, res: Response) {
-    try { 
-      const query = (req.query.q as string) || '';
-      res.json(await mobileService.searchMembersToInvite(req.user.tenantId, req.user.memberId, query)); 
-    }
-    catch (e: any) { res.status(400).json({ error: e.message }); }
-  },
-
   async inviteFamilyMember(req: any, res: Response) {
     try { 
       res.status(201).json(await mobileService.inviteFamilyMember(req.user.tenantId, req.user.memberId, req.body)); 

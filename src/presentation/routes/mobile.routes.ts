@@ -30,7 +30,6 @@ mobileRouter.post('/families', mobileController.createFamily);
 mobileRouter.post('/families/join', mobileController.joinFamily);
 mobileRouter.post('/families/leave', mobileController.leaveFamily);
 mobileRouter.get('/families/invitations', mobileController.getFamilyInvitations);
-mobileRouter.get('/families/search-candidates', mobileController.searchMembersToInvite);
 mobileRouter.post('/families/invite', mobileController.inviteFamilyMember);
 mobileRouter.post('/families/invitations/:id/respond', mobileController.respondToInvitation);
 

@@ -466,37 +466,11 @@ export class MobileService {
     });
   }
 
-  async searchMembersToInvite(tenantId: string, currentMemberId: string, query: string) {
-    const q = query?.trim();
-    if (!q || q.length < 2) return [];
-
-    return prisma.member.findMany({
-      where: {
-        tenantId,
-        id: { not: currentMemberId },
-        familyId: null, // Only members without family
-        OR: [
-          { firstName: { contains: q, mode: 'insensitive' } },
-          { lastName: { contains: q, mode: 'insensitive' } },
-          { phone: { contains: q } },
-          { email: { contains: q, mode: 'insensitive' } },
-        ]
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        email: true,
-        photoUrl: true,
-        gender: true
-      },
-      take: 10
-    });
-  }
-
-  async inviteFamilyMember(tenantId: string, inviterMemberId: string, data: { targetMemberId: string; familyRole?: string; relation?: string }) {
-    if (!data.targetMemberId) throw new Error('Pilih jemaat yang ingin diundang.');
+  async inviteFamilyMember(tenantId: string, inviterMemberId: string, data: { email?: string; targetMemberId?: string; familyRole?: string; relation?: string }) {
+    const rawEmail = data.email?.trim().toLowerCase();
+    if (!rawEmail && !data.targetMemberId) {
+      throw new Error('Email jemaat yang ingin diundang wajib diisi.');
+    }
 
     const inviter = await prisma.member.findUnique({
       where: { id: inviterMemberId },
@@ -510,20 +484,36 @@ export class MobileService {
       throw new Error('Hanya Kepala Keluarga yang dapat mengundang anggota keluarga.');
     }
 
-    const target = await prisma.member.findUnique({
-      where: { id: data.targetMemberId }
-    });
-    if (!target || target.tenantId !== tenantId) {
-      throw new Error('Jemaat tidak ditemukan.');
+    let target = null;
+    if (rawEmail) {
+      target = await prisma.member.findFirst({
+        where: {
+          tenantId,
+          email: { equals: rawEmail, mode: 'insensitive' }
+        }
+      });
+    } else if (data.targetMemberId) {
+      target = await prisma.member.findUnique({
+        where: { id: data.targetMemberId }
+      });
     }
+
+    if (!target || target.tenantId !== tenantId) {
+      throw new Error('Jemaat dengan email tersebut tidak ditemukan atau belum terdaftar di gereja ini.');
+    }
+
+    if (target.id === inviterMemberId) {
+      throw new Error('Anda tidak dapat mengundang diri Anda sendiri.');
+    }
+
     if (target.familyId) {
-      throw new Error('Jemaat ini sudah terdaftar dalam keluarga lain.');
+      throw new Error('Jemaat dengan email tersebut sudah terdaftar dalam keluarga lain.');
     }
 
     const existingInvitation = await prisma.familyInvitation.findFirst({
       where: {
         familyId: inviter.familyId,
-        memberId: data.targetMemberId,
+        memberId: target.id,
         status: 'PENDING'
       }
     });
@@ -536,7 +526,7 @@ export class MobileService {
         tenantId,
         familyId: inviter.familyId,
         invitedById: inviterMemberId,
-        memberId: data.targetMemberId,
+        memberId: target.id,
         familyRole: data.familyRole || 'CHILD',
         relation: data.relation || 'Anggota'
       },
