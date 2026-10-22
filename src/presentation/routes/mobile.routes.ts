@@ -99,7 +99,13 @@ mobileRouter.get('/notifications', mobileController.getNotifications);
 mobileRouter.patch('/notifications/read-all', mobileController.markAllAsRead);
 mobileRouter.patch('/notifications/:id/read', mobileController.markAsRead);
 
-// Mobile Biblical Game Routes
+// Mobile Biblical Game Routes (Wordle Firman & Tangga Iman)
+mobileRouter.get('/game/wordle/today', gameController.getTodayWordle);
+mobileRouter.post('/game/wordle/guess', gameController.submitWordleGuess);
+mobileRouter.get('/game/trivia', gameController.getTriviaQuestions);
+mobileRouter.post('/game/trivia/submit', gameController.submitTriviaAnswer);
+
+// Legacy routes & Leaderboard
 mobileRouter.get('/game/today', gameController.getTodayQuestions);
 mobileRouter.post('/game/submit', gameController.submitAnswer);
 mobileRouter.get('/game/profile', gameController.getGameProfile);
